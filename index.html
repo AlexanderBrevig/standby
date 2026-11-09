@@ -114,10 +114,12 @@
 // ---------- settings ----------
 const DEFAULTS = {
   threshold: -18, refractory: 0.08, command: "Make ready", prepTime: 3, readyWindow: 3,
-  delayMin: 1, delayMax: 4, par: 0, silence: 3, maxWait: 10,
+  delayMin: 1, delayMax: 4, par: 0, silence: 5, maxWait: 10,
   early: true, voice: true, closing: true, speakResults: true,
 };
 const S = Object.assign({}, DEFAULTS, load("standby.settings", {}));
+if (!S.v) { if (S.silence === 3) S.silence = DEFAULTS.silence; S.v = 2; }   // old default ended strings too soon
+const RESUME = 2.5;   // s after "If you are finished": a shot here means the string goes on
 function load(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } }
 function save(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }
 
@@ -347,22 +349,40 @@ async function startString() {
   beepAt(T);
   if (s.par) beepAt(T + s.par, 0.2);
 
-  // wait for the string to end
+  // wait for the string to end; with closing commands, a shot right after
+  // "If you are finished" means the shooter wasn't, so keep timing
   while (alive()) {
-    await sleep(50);
-    if (s.early) break;
-    const now = ctx.currentTime;
-    if (now < T) continue;
-    const ref = s.onset ?? (T + guessLatency());
-    const last = s.hits.length ? ref + s.hits[s.hits.length - 1] : ref;
-    const limit = s.hits.length ? S.silence : S.maxWait;
-    if (now - last > limit && now - ref > (s.par || 0) + 0.3) break;
-    if (s.hits.length === 0) setBig(fmt(Math.max(0, now - ref)));
+    await waitForSilence(s, alive);
+    if (!alive() || s.early || !S.closing) break;
+    const before = s.hits.length;
+    setStatus("If you are finished", "Shoot again to continue the string.");
+    s.muted = true;                                // our own voice is not a shot
+    await speak("If you are finished, unload and show clear.");
+    s.muted = false;
+    s.quietUntil = ctx.currentTime + 0.3;          // speech tail
+    const until = ctx.currentTime + RESUME;
+    while (alive() && ctx.currentTime < until && s.hits.length === before) await sleep(50);
+    if (s.hits.length === before) { s.unloaded = true; break; }
+    setStatus("Continuing", "");
   }
   if (!alive()) return;
   string = null;
   closeMic();
   await finishString(s, alive);
+}
+
+async function waitForSilence(s, alive) {
+  while (alive()) {
+    await sleep(50);
+    if (s.early) return;
+    const now = ctx.currentTime;
+    if (now < s.T) continue;
+    const ref = s.onset ?? (s.T + guessLatency());
+    const last = s.hits.length ? ref + s.hits[s.hits.length - 1] : ref;
+    const limit = s.hits.length ? S.silence : S.maxWait;
+    if (now - last > limit && now - ref > (s.par || 0) + 0.3) return;
+    if (s.hits.length === 0) setBig(fmt(Math.max(0, now - ref)));
+  }
 }
 
 function guessLatency() { return (ctx.outputLatency || 0) + (ctx.baseLatency || 0) + 0.02; }
@@ -371,7 +391,7 @@ function onHit(t) {
   flashHit();
   if (state === "test") { testHit(t); return; }
   const s = string;
-  if (!s) return;
+  if (!s || s.muted || t < (s.quietUntil || 0)) return;
   if (t < s.T) {                                   // before the beep
     if (S.early && t >= s.armFrom) s.early = true;
     return;
@@ -402,9 +422,9 @@ async function finishString(s, alive) {
   if (!s.onset && n) setStatus("Done", "Beep not heard by the mic: times use an estimated latency.");
   else setStatus("Done");
 
-  if (S.closing) {
-    await speak("If you are finished, unload and show clear.");
-    if (!alive()) return; await sleep(3000);
+  if (s.unloaded) {                                // "If you are finished" was already said
+    await sleep(Math.max(0, 3 - RESUME) * 1000);
+    if (!alive()) return;
     await speak("If clear, hammer down, holster.");
     if (!alive()) return; await sleep(3000);
     await speak("Range is clear.");

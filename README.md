@@ -9,7 +9,7 @@ IPSC-style range commands, a random start beep and a sound-triggered shot timer 
 2. Say **"not ready"** within the window to hold (silence = ready, like on the range).
 3. "Standby" → random 1–4 s → beep.
 4. Every sound peak above the threshold is a shot: first-shot time and splits on screen.
-5. After a few seconds of silence: optional closing commands ("If you are finished, unload and show clear" → "If clear, hammer down, holster" → "Range is clear"), then the results are read out.
+5. After 5 s of silence: "If you are finished, unload and show clear". A shot within ~2.5 s after that means you weren't: the string continues (the pause counts in the total, like on a real timer). Otherwise "If clear, hammer down, holster" → "Range is clear", then the results are read out.
 
 Options: par time (second beep), early-start detection (sound before the beep), make-ready time, delay range, echo/min-split window, log of the last strings (stored in the browser only).
 
