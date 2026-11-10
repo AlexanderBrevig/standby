@@ -189,6 +189,8 @@
   .checks li::before { content: ""; position: absolute; left: 2px; top: .55em; width: 8px; height: 8px; border-radius: 50%; background: var(--face-line); }
   .checks .safety { color: var(--face-ink); font-weight: 700; }
   .checks .safety::before { background: var(--accent); }
+  .checks .privacy { color: var(--face-ink); }
+  .checks .privacy::before { background: var(--face-ok); }
   .splash button.primary { min-height: 60px; font: italic 900 1.5rem/1 var(--font-display); text-transform: uppercase; letter-spacing: .04em; }
   #selftest { white-space: pre-wrap; font: .8rem var(--font-mono); }
 
@@ -264,6 +266,7 @@
     <p class="lede">IPSC range commands, a random start beep and a shot timer that listens for your shots.</p>
     <ul class="checks">
       <li>Uses the microphone for shots and voice commands. Works best in Chrome on Android.</li>
+      <li class="privacy"><b>Your audio stays on your phone.</b> Shots are detected live in the browser: nothing is recorded, stored or uploaded. The one exception is voice commands: Chrome sends what you say to Google to turn it into text. Switch voice commands off to keep all audio on the phone.</li>
       <li>Say <b>“restart”</b> to run a string, <b>“not ready”</b> after “Are you ready?” to hold.</li>
       <li class="safety">Treat every gun as loaded.</li>
     </ul>
@@ -412,6 +415,7 @@
     </div>
     <div class="logwrap"><table><thead><tr><th>Time</th><th>Drill</th><th>Total</th><th>HF</th><th>Par</th></tr></thead><tbody id="log"></tbody></table></div>
   </div>
+  <p class="foot chrome"><b>Privacy:</b> shot detection runs on this phone; no audio is recorded, stored or uploaded. Voice commands use the browser's speech recognition, which in Chrome sends what you say to Google; switch them off to keep all audio here. No accounts: the log and settings stay in this browser.</p>
   <p class="foot chrome">Times run from the beep as the mic hears it, so speaker/mic latency cancels out. Saying “bang” works too, but adds your voice reaction time. <a href="https://github.com/AlexanderBrevig/standby">Source</a></p>
 </main>
 
@@ -865,7 +869,7 @@ function refreshDrillUi() {
     ? "Adaptive par needs Drill or Called mode."
     : generated() ? "Adaptive par is kept per pattern, and generated courses rarely repeat, so it's off for them. Fixed par works."
     : `Two passes in a row: par −step. One fail: par +step. A pass is every shot inside par with no mike. The first ${numWord(CAL_REPS)} reps of a pattern set its starting par.`;
-  $("voiceNote").textContent = SR ? "Listen for “restart”, “continue”, “not ready”, scores …"
+  $("voiceNote").textContent = SR ? "Listen for “restart”, “continue”, “not ready”, scores … Chrome sends what you say to Google to recognise it; off keeps all audio on the phone."
     : "Voice recognition isn't available in this browser: use the buttons. Briefings continue by themselves.";
 
   const field = S.mode === "drill" ? "pattern" : generated() ? "targets" : "pool";
@@ -1613,7 +1617,9 @@ async function beginSet(opts = {}) {
   state = "running";
   stopListening(); stopListening = () => {};
   const reps = src ? Math.max(1, Math.round(S.reps) || 1) : 1;
-  const set = activeSet = pending && pending.sig === setSig() ? pending : { rep: 0, reps, results: [], lastKey: null, sig: setSig() };
+  // a new set remembers the last course shot, so "next" or Start never draws that one again
+  const set = activeSet = pending && pending.sig === setSig() ? pending
+    : { rep: 0, reps, results: [], lastKey: sameSettings(lastShot) && lastShot.drill ? lastShot.drill.key : null, sig: setSig() };
   pending = null;
   renderButtons();
   let first = true, keep = true, course = sameSettings(opts.course) ? opts.course : null;
@@ -2226,6 +2232,7 @@ const TOUR = [
     title: "Welcome to the line",
     body: `<p>Standby runs a string the way a range officer would: the range commands, a random start beep, and a timer that listens for your shots.</p>
       <p>Prop the phone up a few metres away. Everything can be done by voice, and the buttons always work too.</p>
+      <p><b>Your audio stays on your phone.</b> Shots are detected live in the browser and never recorded or uploaded. Only voice commands leave it: Chrome sends what you say to Google to recognise it. You can switch voice commands off.</p>
       <p class="tour-safety">Treat every gun as loaded.</p>`,
   },
   {
@@ -2250,7 +2257,7 @@ const TOUR = [
         <span class="say">next</span><small>A new course (or tap Start).</small>
         <span class="say">stop</span><small>Between reps: pause the set.</small>
       </div>
-      <p class="muted">Voice commands use Chrome's speech recognition and need a network connection. The full list is under “Voice commands”.</p>`,
+      <p class="muted">Voice commands use Chrome's speech recognition: what you say is sent to Google to turn it into text, so it needs a network connection. Shot detection never leaves the phone. The full list is under “Voice commands”.</p>`,
   },
   {
     title: "Tune the mic",

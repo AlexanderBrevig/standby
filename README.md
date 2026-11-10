@@ -36,6 +36,11 @@ Patterns: `P` paper (2 shots), `S` steel (1 hit), `R` reload, `M` movement. The 
 
 **Hands-free setup** (on by default): while idle, say **"setup"** and what you want, in any order. For example "setup bill drill from table, five reps, par adaptive", "setup called, my targets five paper three steel, three to six targets", "setup course, start holster, par off". It reads back what it understood, shows it on screen, and changes nothing until you say "confirm" (or tap Confirm). "Cancel", Stop or silence leaves everything as it was. Add "and go" to start right away. Also: "setup?" or "what's set" (read back the current setup), "setup undo", "setup save as warm up" then "setup warm up", "setup help". Words it doesn't understand are read back, never guessed.
 
+## Privacy
+- **Shot detection runs on your phone.** The microphone is analysed live in the browser (an AudioWorklet); no audio is recorded, stored or uploaded.
+- **Voice commands are the exception.** They use the browser's speech recognition, which in Chrome sends what you say to Google to turn it into text (that's why it needs a network connection). Switch voice commands off to keep all audio on the phone; everything else works with the buttons.
+- No accounts and no tracking: the log, settings and adaptive par live in this browser's local storage. The page loads its fonts from Google Fonts.
+
 ## Tips and limits
 - **Mic calibration**: the first time, Standby listens to the room, asks for three shots, and sets the threshold between the two. "Mic test" (under Detector & timing) opens the same sheet: meter, shots heard and the threshold slider together; "Listen again" re-runs it. Phone close to the gun works best.
 - **Times are measured from the beep as the mic hears it**, so speaker and microphone latency cancel out.
