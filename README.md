@@ -24,7 +24,7 @@ Patterns: `P` paper (2 shots), `S` steel (1 hit), `R` reload, `M` movement. The 
 
 **Start position:** Holster, Low ready, Table or Random. It names the first gap (draw, first shot, pickup) and keeps a separate adaptive par. The start command follows it: "Make ready" for a table start, "Load and make ready" otherwise. With Random, every rep gets the full start command for its position.
 
-**Reps:** run a set of N reps with an interval between them. Say "stop" between reps to pause and "restart" to continue. A set summary is read out at the end. The Start button is always live: while a string runs it reads Restart and starts a fresh rep at once.
+**Reps:** run a set of N reps with an interval between them. Say "stop" between reps to pause and "restart" to continue. In Called mode or with a random start, say "repeat" after a string (or between reps) to shoot the same course again; "restart" draws a new one. A set summary is read out at the end. The Start button is always live: while a string runs it reads Restart and starts a fresh rep at once.
 
 **Scoring:** after the string, say one word per shot: alpha, charlie, delta, mike (a steel hit is alpha), counts ("three alpha one charlie"), or "all alpha" (also "all alpha except one charlie"). You can also tap the buttons. The number of words must match the number of shots. You get points (minor or major power factor) and hit factor. Say "correction" to score again.
 

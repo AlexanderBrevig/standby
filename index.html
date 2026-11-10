@@ -314,7 +314,7 @@
     <table>
       <tr><td>restart</td><td>Start a string (also “start”, “resume”); resumes a paused set</td></tr>
       <tr><td>continue</td><td>After the briefing: get the make-ready command</td></tr>
-      <tr><td>repeat</td><td>Read the briefing again</td></tr>
+      <tr><td>repeat</td><td>During the briefing: read it again. After a string, or between reps: the same course again (Called mode, random start).</td></tr>
       <tr><td>next</td><td>During the briefing: another course</td></tr>
       <tr><td>not ready</td><td>After “Are you ready?”: hold</td></tr>
       <tr><td>stop</td><td>Between reps: pause the set</td></tr>
@@ -1424,10 +1424,15 @@ function idleHint() {
   if (!SR) return "Tap Start. (No voice recognition in this browser.)";
   const say = S.voice ? "Say “restart” or tap Start" : "Tap Start";
   if (pending) return `Set paused. ${say} to continue.`;
+  if (S.voice && canRepeat()) return `${say} for a new course, or “repeat” for the same one.`;
   return S.voice && S.handsFree ? `${say}. Say “setup …” to change the drill.` : say + ".";
 }
 // while idle: "restart" starts; "setup …" (whole phrases only, so final results) changes the drill
-function idleText(t) { if (state === "idle" && !isSetupSpeech(t) && VOICE.start.test(t)) startSession(); }
+function idleText(t) {
+  if (state !== "idle" || isSetupSpeech(t)) return;
+  if (VOICE.repeat.test(t) && canRepeat()) startSession({ again: true });   // "repeat": the same course again
+  else if (VOICE.start.test(t)) startSession();
+}
 function idleFinal(alts) { const setup = alts.filter(isSetupSpeech); if (state === "idle" && setup.length) setupFlow(setup); }
 function idleListen() {
   stopListening();
@@ -1544,13 +1549,17 @@ async function setupFlow(alts) {
 }
 
 // ---------- sets ----------
-function startSession() {
+// the course last shot (pattern and start position), for "repeat"; only while the settings that made it hold
+let lastCourse = null;
+const canRepeat = () => !!lastCourse && lastCourse.sig === setSig() && (S.mode === "called" || S.startPos === "random");
+function startSession(opts = {}) {
   if (state !== "idle" || plan.error) return false;
   if (!gestured) { setStatus("Tap to wake the audio", "Browsers only play sound after a tap. Tap anywhere once, then say “restart”."); return false; }
-  beginSet();
+  beginSet(opts);
   return true;
 }
-async function beginSet() {
+// opts.again: the first rep shoots the last course again
+async function beginSet(opts = {}) {
   const src = plan.src;
   const my = ++run;
   const alive = () => my === run;
@@ -1560,11 +1569,13 @@ async function beginSet() {
   const set = activeSet = pending && pending.sig === setSig() ? pending : { rep: 0, reps, results: [], lastKey: null, sig: setSig() };
   pending = null;
   renderButtons();
-  let first = true, keep = true;
+  let first = true, keep = true, again = opts.again && canRepeat();
   while (alive() && set.rep < reps) {
-    const drill = src ? nextDrill(src, set.lastKey) : null;
+    const drill = again ? lastCourse.drill : src ? nextDrill(src, set.lastKey) : null;
+    const start = again ? lastCourse.start : pickStart();
+    again = false;
     if (drill) set.lastKey = drill.key;
-    const start = pickStart();
+    lastCourse = { drill, start, sig: set.sig };
     $("drillLine").textContent = drillLine(drill, set.rep, reps, start);
     renderParLine(drill && parKey(drill, start));
     const r = await runString({ first, drill, start, set }, alive);   // a finished rep counts itself into the set
@@ -1574,9 +1585,10 @@ async function beginSet() {
     if (r === "hold") { if (reps > 1) pending = set; keep = false; break; }
     if (r.early && reps === 1) break;   // otherwise the rep is shot again
     if (set.rep < reps) {
-      const hold = await repPause(alive);
+      const next = await repPause(alive);
       if (!alive()) return;
-      if (hold) { pending = set; keep = false; break; }
+      if (next === "hold") { pending = set; keep = false; break; }
+      again = next === "again";
     }
   }
   if (!alive()) return;
@@ -1601,10 +1613,17 @@ async function repPause(alive) {
   setStatus(`Next in ${secs}`, canListen() ? "Say “stop” to pause the set." : "");
   const t0 = Date.now();
   await speak(`Next in ${secs}.`);
-  if (!alive()) return false;
-  const hold = await listenFor(VOICE.hold, Math.max(0, secs * 1000 - (Date.now() - t0)), alive);
-  if (hold && alive()) await speak("Set paused. Say restart to continue.");
-  return hold && alive();
+  if (!alive()) return null;
+  // "stop" pauses the set; "repeat" makes the next rep the same course
+  let heard = null;
+  const stop = listen(t => { if (VOICE.hold.test(t)) heard = "hold"; else if (VOICE.repeat.test(t) && canRepeat()) heard = heard || "again"; });
+  const until = Date.now() + Math.max(0, secs * 1000 - (Date.now() - t0));
+  while (heard !== "hold" && alive() && Date.now() < until) await sleep(50);
+  stop();
+  if (!alive()) return null;
+  if (heard === "hold") await speak("Set paused. Say restart to continue.");
+  else if (heard === "again") await speak("Same course again.");
+  return alive() ? heard : null;
 }
 
 // ---------- one string ----------
@@ -2110,7 +2129,7 @@ const TOUR = [
         <span class="say">restart</span><small>Start a string, or resume a paused set.</small>
         <span class="say">not ready</span><small>Hold, after “Are you ready?”.</small>
         <span class="say">continue</span><small>After a briefing: go on to “make ready”.</small>
-        <span class="say">repeat</span><small>Hear the briefing again.</small>
+        <span class="say">repeat</span><small>In a briefing: hear it again. After a string: the same course again.</small>
         <span class="say">next</span><small>Another course instead.</small>
         <span class="say">stop</span><small>Between reps: pause the set.</small>
       </div>

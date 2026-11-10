@@ -155,6 +155,26 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   check("idle hint asks for a tap", idleHint() === "Tap anywhere once to wake the audio.");
   gestured = true;
 
+  // 21. "repeat" shoots the last course again (called mode, random start); "restart" draws a new one
+  setup({ mode: "called", calledFrom: "pool", pool: "P S\n2S\nP\nP S P\n2P S", startPos: "random", reps: 1 }); SAID.length = 0; rep = 0;
+  PLAN = s => s.drill.shots.map((_, i) => 1 + i * 0.3);
+  localStorage.removeItem("standby.log");
+  startSession(); await until(() => state === "idle");
+  const firstRun = lastLog();
+  idleText("repeat"); await until(() => state === "running"); await until(() => state === "idle");
+  const again = lastLog();
+  check("repeat: same course and start", again && firstRun && again.at !== firstRun.at && again.pattern === firstRun.pattern && again.start === firstRun.start, JSON.stringify([firstRun && [firstRun.pattern, firstRun.start], again && [again.pattern, again.start]]));
+  check("idle hint offers repeat", /repeat/.test(idleHint()), idleHint());
+  // between reps
+  setup({ mode: "called", calledFrom: "pool", pool: "P S\n2S\nP\nP S P\n2P S", startPos: "random", reps: 2 }); SAID.length = 0; rep = 0;
+  REPLIES = [[/^Next in/, "repeat"]];
+  localStorage.removeItem("standby.log");
+  startSession(); await until(() => state === "idle");
+  const two = load("standby.log", []);
+  check("repeat between reps", two.length === 2 && two[0].pattern === two[1].pattern && two[0].start === two[1].start && SAID.includes("Same course again."), JSON.stringify(two.map(e => [e.pattern, e.start])));
+  // changed settings: no repeat
+  applySettings({ startPos: "holster", mode: "drill" }); check("no repeat after settings change", !canRepeat());
+
   // 14. generated course + score over 12 shots prompt uses digits
   check("numWord 15", numWord(15) === "15");
   check("no errors", !LOG.some(l => l.startsWith("ERROR") || l.startsWith("REJECT")));
