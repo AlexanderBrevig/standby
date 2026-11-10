@@ -185,7 +185,7 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   for (let k = 0; k < 3; k++) { calibPeak(0.3, ctx.currentTime); await sleep(400); calibPeak(0.01, ctx.currentTime); }   // clicks: about -10 dB
   const want = Math.round(-40 + (ampDb(0.3) + 40) * 0.45);
   check("calibrated threshold", S.threshold === want && $("threshold").value === String(want) && isCalibrated() && calib.phase === "done", S.threshold + " " + (calib && calib.phase));
-  testHit(ctx.currentTime); check("clicks counted after", /1<\/b> click heard/.test($("calibHits").innerHTML), $("calibHits").innerHTML);
+  testHit(ctx.currentTime); check("clicks counted after", /1<\/b> shot heard/.test($("calibHits").innerHTML), $("calibHits").innerHTML);
   $("calibDone").click(); await sleep(100);
   check("mic sheet closes to idle", !$("calib").open && state === "idle", state);
   $("test").click(); await sleep(100);

@@ -1,6 +1,6 @@
 # Standby
 
-IPSC-style range commands, a random start beep and a sound-triggered shot timer for **dry fire**, in one static web page.
+IPSC-style range commands, a random start beep and a sound-triggered shot timer, in one static web page. Use it however you train.
 
 **Live:** https://alexanderbrevig.github.io/standby/
 
@@ -37,11 +37,11 @@ Patterns: `P` paper (2 shots), `S` steel (1 hit), `R` reload, `M` movement. The 
 **Hands-free setup** (on by default): while idle, say **"setup"** and what you want, in any order. For example "setup bill drill from table, five reps, par adaptive", "setup called, my targets five paper three steel, three to six targets", "setup course, start holster, par off". It reads back what it understood, shows it on screen, and changes nothing until you say "confirm" (or tap Confirm). "Cancel", Stop or silence leaves everything as it was. Add "and go" to start right away. Also: "setup?" or "what's set" (read back the current setup), "setup undo", "setup save as warm up" then "setup warm up", "setup help". Words it doesn't understand are read back, never guessed.
 
 ## Tips and limits
-- **Mic calibration**: the first time, Standby listens to the room, asks you to dry fire three times, and sets the threshold between the two. "Mic test" (under Detector & timing) opens the same sheet: meter, clicks heard and the threshold slider together; "Listen again" re-runs it. Phone close to the gun works best.
+- **Mic calibration**: the first time, Standby listens to the room, asks for three shots, and sets the threshold between the two. "Mic test" (under Detector & timing) opens the same sheet: meter, shots heard and the threshold slider together; "Listen again" re-runs it. Phone close to the gun works best.
 - **Times are measured from the beep as the mic hears it**, so speaker and microphone latency cancel out.
-- **Saying "bang" works, but adds your voice reaction time** (~0.15–0.3 s, inconsistent). Use the trigger/hammer click or an airsoft gun for numbers worth logging.
-- Not for live fire: phone mics clip and indoor ranges echo. Buy a real shot timer.
-- With a reload in the pattern, check in "Mic test" how loud seating the magazine is compared with your click. The filter assumes the sound comes before the next shot and isn't right on top of it.
+- **Every sound above the threshold counts as a shot**: nearby shooters and loud echoes too. In an echoey room, raise the echo window (Detector & timing).
+- **Saying "bang" works, but adds your voice reaction time** (~0.15–0.3 s, inconsistent).
+- With a reload in the pattern, check in "Mic test" how loud seating the magazine is compared with a shot. The filter assumes the sound comes before the next shot and isn't right on top of it.
 - Voice commands use the browser's speech recognition (Chrome: Google's servers, needs a network, ~0.5–1 s lag; Android may chime when it starts listening). Timing never uses it. Without it, use the buttons.
 - The screen is kept awake while the page is open (Wake Lock API, where supported).
 

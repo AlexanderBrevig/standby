@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Standby</title>
-<meta name="description" content="Voice-driven IPSC range commands and a sound-triggered shot timer for dry fire, in the browser.">
+<meta name="description" content="Voice-driven IPSC range commands and a sound-triggered shot timer, in the browser.">
 <meta name="theme-color" content="#07090c">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -261,11 +261,11 @@
 <div id="overlay">
   <div class="splash">
     <div class="wordmark">Standby<span class="beep" aria-hidden="true"></span></div>
-    <p class="lede">IPSC range commands, a random start beep and a shot timer that listens for your dry-fire click.</p>
+    <p class="lede">IPSC range commands, a random start beep and a shot timer that listens for your shots.</p>
     <ul class="checks">
       <li>Uses the microphone for shots and voice commands. Works best in Chrome on Android.</li>
       <li>Say <b>“restart”</b> to run a string, <b>“not ready”</b> after “Are you ready?” to hold.</li>
-      <li class="safety">Dry-fire ritual first: no ammunition in the room.</li>
+      <li class="safety">Treat every gun as loaded.</li>
     </ul>
     <button class="primary" id="enable">Tap to enable</button>
   </div>
@@ -275,7 +275,7 @@
   <header class="masthead chrome">
     <div class="wordmark">Standby<span class="beep" aria-hidden="true"></span></div>
     <div class="mast-right">
-      <span class="tag">Dry-fire IPSC timer</span>
+      <span class="tag">IPSC shot timer</span>
       <button class="icon" id="help" aria-label="Quick tour of the commands and modes" title="Quick tour">?</button>
     </div>
   </header>
@@ -389,7 +389,7 @@
       <summary>Detector &amp; timing</summary>
       <label>Sensitivity threshold <output id="thrOut"></output>
         <input type="range" id="threshold" min="-50" max="-1" step="1">
-        <small>Shots are sound peaks above this level (dBFS). Use the mic test: set it just above room noise, below the dry-fire click.</small></label>
+        <small>Shots are sound peaks above this level (dBFS). Use the mic test: set it just above room noise, below a shot.</small></label>
       <div class="row"><button id="test">Mic test</button></div>
       <label>Echo / min split (s) <input type="number" id="refractory" min="0.02" max="0.5" step="0.01"></label>
       <label>Make-ready time (s) <input type="number" id="prepTime" min="0" max="30" step="0.5"></label>
@@ -410,7 +410,7 @@
     </div>
     <div class="logwrap"><table><thead><tr><th>Time</th><th>Drill</th><th>Total</th><th>HF</th><th>Par</th></tr></thead><tbody id="log"></tbody></table></div>
   </div>
-  <p class="foot chrome">Times run from the beep as the mic hears it, so speaker/mic latency cancels out. Saying “bang” adds your voice reaction time: use the click for numbers. <a href="https://github.com/AlexanderBrevig/standby">Source</a></p>
+  <p class="foot chrome">Times run from the beep as the mic hears it, so speaker/mic latency cancels out. Saying “bang” works too, but adds your voice reaction time. <a href="https://github.com/AlexanderBrevig/standby">Source</a></p>
 </main>
 
 <dialog id="calib" aria-labelledby="calibTitle">
@@ -419,7 +419,7 @@
     <button class="icon" id="calibClose" aria-label="Close">✕</button>
   </div>
   <h2 id="calibTitle" tabindex="-1" autofocus>Tune the mic</h2>
-  <p id="calibText" class="muted">Put the phone where it will be when you train. Standby listens to the room first, then for your trigger click.</p>
+  <p id="calibText" class="muted">Put the phone where it will be when you train. Standby listens to the room first, then for your shots.</p>
   <div class="calib-face">
     <div id="calibStatus" aria-live="polite">Listening to the room…</div>
     <div class="meter" id="calibMeter" aria-hidden="true"><i></i><b></b></div>
@@ -427,7 +427,7 @@
   </div>
   <label>Threshold <output id="calibThrOut"></output>
     <input type="range" id="calibThr" min="-50" max="-1" step="1">
-    <small>A click must reach past the orange line. Room noise should stay below it.</small></label>
+    <small>A shot must reach past the orange line. Room noise should stay below it.</small></label>
   <div class="row tour-nav">
     <button id="calibAgain">Listen again</button>
     <button class="primary" id="calibDone">Done</button>
@@ -2072,7 +2072,7 @@ async function setSummary(results, mixed, alive) {
 }
 
 // ---------- mic sheet: test and calibration ----------
-// Listens to the room (~1.5 s) for its noise floor, then for three trigger clicks, and sets the threshold
+// Listens to the room (~1.5 s) for its noise floor, then for three shots, and sets the threshold
 // between the two. Opens by itself while the threshold is uncalibrated; "Mic test" opens it any time.
 const CALIB_CLICKS = 3, CALIB_ROOM = 1.5;   // clicks to hear, seconds of room
 let calib = null;   // { phase: "room" | "clicks" | "done", noise: [dB], clicks: [dB], t0, lastClick, heard, hits, lastHit }
@@ -2091,14 +2091,14 @@ function calibPeak(peak, t) {
   const db = ampDb(peak);
   if (calib.phase === "room") {
     calib.noise.push(db);
-    if (t - calib.t0 >= CALIB_ROOM) { calib.phase = "clicks"; calibSay(`Now dry fire ${numWord(CALIB_CLICKS)} times.`, `Room: <b>${Math.round(median(calib.noise))} dB</b>`); }
+    if (t - calib.t0 >= CALIB_ROOM) { calib.phase = "clicks"; calibSay(`Now fire ${numWord(CALIB_CLICKS)} shots.`, `Room: <b>${Math.round(median(calib.noise))} dB</b>`); }
   } else if (calib.phase === "clicks") {
     const floor = median(calib.noise);
     if (db > floor + 12 && t - calib.lastClick > 0.25) {
       calib.clicks.push(db); calib.lastClick = t;
       const n = calib.clicks.length;
-      calibSay(n < CALIB_CLICKS ? `Click ${n} of ${CALIB_CLICKS}. Again.` : "Got it.",
-        `Room <b>${Math.round(floor)} dB</b> · clicks ${calib.clicks.map(c => `<b>${Math.round(c)}</b>`).join(" ")} dB`);
+      calibSay(n < CALIB_CLICKS ? `Shot ${n} of ${CALIB_CLICKS}. Again.` : "Got it.",
+        `Room <b>${Math.round(floor)} dB</b> · shots ${calib.clicks.map(c => `<b>${Math.round(c)}</b>`).join(" ")} dB`);
       if (n >= CALIB_CLICKS) calibFinish();
     }
   }
@@ -2111,15 +2111,15 @@ function calibFinish() {
   $("threshold").dispatchEvent(new Event("change"));
   save("standby.calibrated", true);
   calib.phase = "done";
-  const close = quietest - floor < 18 ? " The clicks are only a little louder than the room: put the phone closer if shots get missed." : "";
-  calibSay(`Threshold set to ${thr} dB.`, `Every click should now flash the meter orange.${close}`);
+  const close = quietest - floor < 18 ? " The shots are only a little louder than the room: put the phone closer if shots get missed." : "";
+  calibSay(`Threshold set to ${thr} dB.`, `Every shot should now flash the meter orange.${close}`);
   $("calibDone").textContent = "Done";
 }
 // the detector's hits while the sheet is open
 function testHit(t) {
   if (!calib || calib.phase !== "done") return;
   calib.hits++;
-  calibSay(`Threshold ${S.threshold} dB`, `<b>${calib.hits}</b> ${plural(calib.hits, "click")} heard${calib.lastHit != null ? ` · last gap <b>${fmt(t - calib.lastHit)}</b>` : ""}`);
+  calibSay(`Threshold ${S.threshold} dB`, `<b>${calib.hits}</b> ${plural(calib.hits, "shot")} heard${calib.lastHit != null ? ` · last gap <b>${fmt(t - calib.lastHit)}</b>` : ""}`);
   calib.lastHit = t;
 }
 async function openCalib(listenFirst) {
@@ -2129,7 +2129,7 @@ async function openCalib(listenFirst) {
   renderButtons();
   $("calib").showModal();
   if (listenFirst) calibListen();
-  else { calib = { phase: "done", hits: 0, lastHit: null }; calibSay(`Threshold ${S.threshold} dB`, "Dry fire: every click should flash the meter orange."); $("calibDone").textContent = "Done"; }
+  else { calib = { phase: "done", hits: 0, lastHit: null }; calibSay(`Threshold ${S.threshold} dB`, "Every shot should flash the meter orange."); $("calibDone").textContent = "Done"; }
   try { await openMic(); } catch (err) { calibSay("Can't use the microphone.", escapeHtml(String(err && err.message || err))); return; }
   // no level at all after a while: the mic isn't delivering sound
   setTimeout(() => { if (calib && calib.phase !== "done" && !calib.heard && $("calib").open && listenFirst) calibSay("No sound from the microphone.", "Check that the browser may use it, then tap Listen again."); }, 2500);
@@ -2187,9 +2187,9 @@ const mn = marks => `<div class="mn">${marks.split(" ").map((t, i) =>
 const TOUR = [
   {
     title: "Welcome to the line",
-    body: `<p>Standby runs a dry-fire string the way a range officer would: the range commands, a random start beep, and a timer that listens for the click of your trigger.</p>
+    body: `<p>Standby runs a string the way a range officer would: the range commands, a random start beep, and a timer that listens for your shots.</p>
       <p>Prop the phone up a few metres away. Everything can be done by voice, and the buttons always work too.</p>
-      <p class="tour-safety">Before every session: no ammunition in the room. Check the gun twice.</p>`,
+      <p class="tour-safety">Treat every gun as loaded.</p>`,
   },
   {
     title: "One string",
@@ -2197,7 +2197,7 @@ const TOUR = [
         <li><span class="n">1</span><b>Load and make ready</b><small>Get into your start position.</small></li>
         <li><span class="n">2</span><b>Are you ready?</b><small>Silence means yes. Say “not ready” to hold.</small></li>
         <li><span class="n">3</span><b>Standby</b><small>Then a random pause of 1–4 seconds.</small></li>
-        <li class="beepline"><span class="n">4</span><b>BEEP</b><small>Draw and shoot. Every click is timed.</small></li>
+        <li class="beepline"><span class="n">4</span><b>BEEP</b><small>Draw and shoot. Every shot is timed.</small></li>
         <li><span class="n">5</span><b>If you are finished, unload and show clear</b><small>Shoot again within a moment and the string goes on.</small></li>
         <li><span class="n">6</span><b>Range is clear</b><small>Your times are read out and logged.</small></li>
       </ol>
@@ -2220,8 +2220,8 @@ const TOUR = [
     body: `<p>The timer hears a shot as any sound louder than the threshold. The first time, Standby sets it for you:</p>
       <ol class="tl">
         <li><span class="n">1</span><b>It listens to the room</b><small>A second or two: keep still.</small></li>
-        <li><span class="n">2</span><b>You dry fire three times</b><small>Standby hears how loud your click is.</small></li>
-        <li><span class="n">3</span><b>It sets the threshold</b><small>Between the room and your click. Fine-tune with the slider.</small></li>
+        <li><span class="n">2</span><b>You fire three shots</b><small>Standby hears how loud a shot is.</small></li>
+        <li><span class="n">3</span><b>It sets the threshold</b><small>Between the room and your shots. Fine-tune with the slider.</small></li>
       </ol>
       <p class="muted">Moved the phone or changed gun? Run it again with “Mic test” under “Detector &amp; timing”. Times run from the beep as the mic hears it, so speaker and mic delay cancel out.</p>
       <div class="tour-actions"><button data-act="mictest">Open the mic test</button></div>`,
