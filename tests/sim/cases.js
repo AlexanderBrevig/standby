@@ -193,6 +193,19 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   $("calibClose").click(); await sleep(100);
   applySettings({ threshold: DEFAULTS.threshold });
 
+  // 23. first visit: the tour, then the mic setup
+  localStorage.removeItem("standby.calibrated"); applySettings({ threshold: DEFAULTS.threshold }); localStorage.removeItem("standby.calibrated");
+  calibAfterTour = true; openTour();
+  check("first visit: tour first", $("tour").open && !$("calib").open);
+  for (let k = 1; k < TOUR.length; k++) $("tourNext").click();
+  $("tourNext").click(); await sleep(100);   // Done
+  check("first visit: mic setup after the tour", !$("tour").open && $("calib").open && state === "test" && calib.phase === "room", `${$("tour").open} ${$("calib").open} ${state}`);
+  closeCalib(); await sleep(100);
+  check("first visit: then go", state === "idle" && isCalibrated(), state);
+  openTour(); closeTour(); await sleep(100);
+  check("later tours don't reopen the mic setup", !$("calib").open && state === "idle");
+  applySettings({ threshold: DEFAULTS.threshold });
+
   // 14. generated course + score over 12 shots prompt uses digits
   check("numWord 15", numWord(15) === "15");
   check("no errors", !LOG.some(l => l.startsWith("ERROR") || l.startsWith("REJECT")));

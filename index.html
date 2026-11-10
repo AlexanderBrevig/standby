@@ -196,7 +196,6 @@
   .mast-right { display: flex; align-items: center; gap: 10px; }
   button.icon { flex: 0 0 auto; width: 40px; height: 40px; min-height: 40px; padding: 0; border-radius: 50%; font: 900 1.25rem/1 var(--font-display); }
   #help { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-size: 1.35rem; }
-  button.ghost { background: none; border: 0; color: var(--face-muted); text-decoration: underline; text-underline-offset: 3px; min-height: 40px; }
   #tour, #calib { width: min(520px, 100vw); --face-ink: #f1f4f6; max-height: 92dvh; margin: auto auto 0; padding: 18px 18px max(18px, env(safe-area-inset-bottom));
     border: 1px solid var(--line); border-radius: 22px 22px 0 0; background: var(--surface); color: var(--ink); overflow: auto; }
   @media (min-width: 600px) { #tour, #calib { margin: auto; border-radius: 22px; } }
@@ -269,7 +268,6 @@
       <li class="safety">Dry-fire ritual first: no ammunition in the room.</li>
     </ul>
     <button class="primary" id="enable">Tap to enable</button>
-    <button class="ghost" id="enableTour">New here? Take the quick tour</button>
   </div>
 </div>
 
@@ -2142,7 +2140,6 @@ function closeCalib() {
   calib = null;
   if ($("calib").open) $("calib").close();
   if (state === "test") goIdle();
-  if (tourAfterCalib) { tourAfterCalib = false; openTour(); }
 }
 $("calib").addEventListener("close", () => { if (!$("calib").open) closeCalib(); });   // a late event after a reopen is stale
 $("calibDone").addEventListener("click", closeCalib);
@@ -2292,9 +2289,18 @@ function openTour(at = 0) {
 function closeTour() {
   save("standby.toured", true);   // now, not on the (asynchronous) close event
   if ($("tour").open) $("tour").close();
+  afterTour();
+}
+// on the first visit the mic setup follows the tour
+let calibAfterTour = false;
+function afterTour() {
+  if (!calibAfterTour) return;
+  calibAfterTour = false;
+  if (state === "idle" && !isCalibrated()) openCalib(true);
 }
 $("tour").addEventListener("close", () => {
   if ($("tour").open) return;   // reopened meanwhile: this event is stale
+  afterTour();   // closed with Escape
   if ("speechSynthesis" in window) speechSynthesis.cancel();
   save("standby.toured", true);
   if (state === "idle") { idleListen(); if (statusText === "Idle") $("hint").textContent = idleHint(); }
@@ -2322,6 +2328,7 @@ $("tourBody").addEventListener("click", async e => {
     await speak(`${describeSetup({ ...S, mode: "drill", pattern: "P6", startPos: "table", reps: 5 }, ["mode", "pattern", "startPos", "reps"])} Say confirm or cancel.`);
   }
   if (act === "mictest") {
+    calibAfterTour = false;   // opened here instead
     closeTour();
     $("test").closest("details").open = true;
     $("test").scrollIntoView({ block: "center" });
@@ -2351,8 +2358,7 @@ function ensureAudio() {
 }
 document.addEventListener("pointerdown", ensureAudio, { capture: true });
 document.addEventListener("keydown", ensureAudio, { capture: true });
-let tourAfterCalib = false;   // "take the tour" on the start screen: after tuning the mic
-async function enable(tour) {
+async function enable() {
   ensureAudio();
   await ctx.resume().catch(() => {});
   save("standby.seen", true);
@@ -2361,12 +2367,11 @@ async function enable(tour) {
   $("overlay").remove();
   keepAwake();
   goIdle();
-  if (!isCalibrated()) { tourAfterCalib = tour; openCalib(true); }
-  else if (tour) openTour();
-  else if (!load("standby.toured", false)) setStatus("Idle", "New here? Tap ? for a one-minute tour.");
+  // the first visit: the quick tour, then the mic setup, then go
+  if (!load("standby.toured", false)) { calibAfterTour = true; openTour(); }
+  else if (!isCalibrated()) openCalib(true);
 }
-$("enable").addEventListener("click", () => enable(false));
-$("enableTour").addEventListener("click", () => enable(true));
+$("enable").addEventListener("click", enable);
 $("start").addEventListener("click", () => {
   if (state === "setup") { if (confirmGo) confirmGo(); }
   else if (state === "idle") startSession();
