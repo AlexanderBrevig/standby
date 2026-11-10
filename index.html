@@ -888,9 +888,10 @@ function refreshDrillUi() {
   syncSegments();
   if (state === "idle") {
     $("drillLine").textContent = drillLine();
-    if (statusText === "Idle") {
-      $("hint").textContent = idleHint();
-      // the face previews what's set
+    if (statusText === "Idle") $("hint").textContent = idleHint();
+    // the face previews what's set; a result's time stays, but course letters left from a briefing or a
+    // setup readback (stopped, cancelled) are replaced by the current setup
+    if (statusText === "Idle" || $("big").classList.contains("mn")) {
       if (S.mode === "course" && S.startPos === "holster") setBig("0.00"); else setMnemonic(setupMarks(S));
     }
     renderParLine(S.mode === "drill" && src && S.startPos !== "random" ? parKey(src.list[0], S.startPos) : null);
@@ -1453,7 +1454,9 @@ function renderButtons() {
   $("stop").textContent = state === "setup" ? "Cancel" : "Stop";
   $("test").disabled = state === "running" || state === "setup";
   $("test").textContent = state === "test" ? "End test" : "Mic test";
+  const wasRunning = document.body.classList.contains("running");
   document.body.classList.toggle("running", state === "running" || state === "setup");
+  if (wasRunning !== document.body.classList.contains("running")) fitMnemonic();   // the face changed size
   document.body.dataset.state = state;
 }
 function idleHint() {
@@ -2398,9 +2401,7 @@ $("start").addEventListener("click", () => {
 $("stop").addEventListener("click", () => {
   if (state === "setup") { abortRun(); setStatus("Setup cancelled", ""); goIdle(true); $("hint").textContent = idleHint(); return; }
   abortRun(); pending = null; activeSet = null;
-  setStatus("Stopped", "");
-  goIdle(true);
-  $("hint").textContent = idleHint();
+  goIdle();   // straight back to the idle face and the preview of what's set
 });
 $("test").addEventListener("click", () => openCalib(false));
 $("clearLog").addEventListener("click", () => { if (confirm("Clear the log?")) { save("standby.log", []); renderLog(); } });

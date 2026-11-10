@@ -206,6 +206,15 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   check("later tours don't reopen the mic setup", !$("calib").open && state === "idle");
   applySettings({ threshold: DEFAULTS.threshold });
 
+  // 24. Stop during a long called briefing: back to the idle face, the preview fits
+  setup({ mode: "called", calledFrom: "pool", pool: "2P S R P S 2S M P 2S", confirm: true, startPos: "holster", reps: 1 }); SAID.length = 0; REPLIES = [];
+  startSession(); await until(() => confirmGo !== null);
+  check("briefing shows the long course", $("big").classList.contains("mn") && document.body.classList.contains("running"));
+  $("stop").click(); await sleep(100);
+  const big = $("big");
+  check("stop: idle face with the preview", state === "idle" && statusText === "Idle" && big.textContent.replace(/\s+/g, " ").trim() === setupMarks(S), `${statusText} | ${big.textContent}`);
+  check("stop: nothing overflows", big.scrollWidth <= big.clientWidth + 1, `${big.scrollWidth} > ${big.clientWidth}`);
+
   // 14. generated course + score over 12 shots prompt uses digits
   check("numWord 15", numWord(15) === "15");
   check("no errors", !LOG.some(l => l.startsWith("ERROR") || l.startsWith("REJECT")));
