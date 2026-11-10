@@ -137,6 +137,18 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   S.handsFree = false; idleText("setup start position table"); check("hands-free off: \"start\" starts as before", starts === 2, starts); S.handsFree = true;
   startSession = origStart;
 
+  // 19. quick tour: opens when idle, steps through, the last step closes it; actions work
+  localStorage.removeItem("standby.toured");
+  $("help").click();
+  check("tour opens", $("tour").open && $("tourStep").textContent === "1 / " + TOUR.length, $("tourStep").textContent);
+  check("tour back disabled on step 1", $("tourBack").disabled);
+  for (let k = 1; k < TOUR.length; k++) $("tourNext").click();
+  check("tour last step", $("tourNext").textContent === "Done" && $("tourTitle").textContent === "Your first session", $("tourTitle").textContent);
+  $("tourBody").querySelector("[data-act=doubles]").click(); await sleep(100);
+  check("tour loads Doubles", !$("tour").open && S.mode === "drill" && S.pattern === "P" && S.reps === 5, JSON.stringify([$("tour").open, S.mode, S.pattern, S.reps]));
+  check("tour remembered", load("standby.toured", false) === true);
+  state = "running"; $("help").click(); check("no tour while running", !$("tour").open); state = "idle";
+
   // 14. generated course + score over 12 shots prompt uses digits
   check("numWord 15", numWord(15) === "15");
   check("no errors", !LOG.some(l => l.startsWith("ERROR") || l.startsWith("REJECT")));

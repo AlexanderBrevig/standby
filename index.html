@@ -183,6 +183,51 @@
   .splash button { min-height: 60px; font: italic 900 1.5rem/1 var(--font-display); text-transform: uppercase; letter-spacing: .04em; }
   #selftest { white-space: pre-wrap; font: .8rem var(--font-mono); }
 
+  /* help button and the quick tour */
+  .mast-right { display: flex; align-items: center; gap: 10px; }
+  button.icon { flex: 0 0 auto; width: 40px; height: 40px; min-height: 40px; padding: 0; border-radius: 50%; font: 900 1.25rem/1 var(--font-display); }
+  #help { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  button.ghost { background: none; border: 0; color: var(--face-muted); text-decoration: underline; text-underline-offset: 3px; min-height: 40px; }
+  #tour { width: min(520px, 100vw); max-height: 92dvh; margin: auto auto 0; padding: 18px 18px max(18px, env(safe-area-inset-bottom));
+    border: 1px solid var(--line); border-radius: 22px 22px 0 0; background: var(--surface); color: var(--ink); overflow: auto; }
+  @media (min-width: 600px) { #tour { margin: auto; border-radius: 22px; } }
+  #tour::backdrop { background: rgba(5, 7, 10, .6); backdrop-filter: blur(3px); }
+  #tour[open] { animation: rise .22s ease-out; }
+  @keyframes rise { from { transform: translateY(24px); opacity: .4; } to { transform: none; opacity: 1; } }
+  #tourTitle:focus { outline: none; }
+  .tour-top { display: flex; align-items: center; justify-content: space-between; }
+  .tour-step { font: 700 .75rem var(--font-body); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+  #tourTitle { font: 900 2rem/1.05 var(--font-display); text-transform: none; letter-spacing: .01em; color: var(--ink); margin: 6px 0 10px; text-wrap: balance; }
+  #tourBody { display: grid; gap: 12px; min-height: 260px; align-content: start; }
+  #tourBody p { margin: 0; }
+  .tour-safety { padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 700; }
+  .tour-face { background: radial-gradient(120% 90% at 50% 0%, var(--face-2), var(--face)); color: var(--face-ink); border-radius: 16px; padding: 14px 16px;
+    --muted: var(--face-muted); }
+  .tour-face .mn { font: 900 3rem/1 var(--font-display); text-align: center; letter-spacing: .02em; }
+  .tour-face .mn span { display: inline-block; margin: 0 .1em; }
+  .mk-start { color: var(--face-muted); } .mk-paper { color: var(--paper); } .mk-steel { color: var(--steel); } .mk-reload { color: var(--accent-hi); } .mk-move { color: #7fd1bd; }
+  .tour-face .brief { font: 700 1.15rem/1.2 var(--font-display); }
+  .tl { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .tl li { display: grid; grid-template-columns: 1.6rem 1fr; gap: 0 10px; align-items: baseline; }
+  .tl b { font: 800 1.05rem var(--font-display); letter-spacing: .02em; }
+  .tl small { grid-column: 2; color: var(--muted); }
+  .tl .n { font: 700 .8rem var(--font-mono); color: var(--accent); }
+  .tl .beepline b { color: var(--accent); }
+  .say { display: inline-block; font: 700 .95rem var(--font-mono); padding: 3px 10px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); white-space: nowrap; }
+  .cmds { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; align-items: center; }
+  .cmds small { color: var(--muted); }
+  .modes { display: grid; gap: 8px; }
+  .modes div { border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; }
+  .modes b { font: 900 1.25rem var(--font-display); text-transform: uppercase; letter-spacing: .03em; margin-right: 6px; }
+  .legend { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: .95rem; }
+  .legend > span:nth-child(odd) { font: 900 1.3rem/1.1 var(--font-display); }
+  .tour-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tour-actions button { flex: 0 0 auto; min-height: 42px; padding: 8px 14px; }
+  .tour-dots { display: flex; justify-content: center; gap: 6px; margin: 16px 0 12px; }
+  .tour-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+  .tour-dots i.on { background: var(--accent); width: 22px; border-radius: 4px; }
+  .tour-nav button { min-height: 52px; }
+
   /* range view: while a string runs, the phone is metres away and only the face matters */
   body.running { --big-max: 10rem; }
   body.running .chrome, body.running #meter { display: none; }
@@ -208,13 +253,17 @@
       <li class="safety">Dry-fire ritual first: no ammunition in the room.</li>
     </ul>
     <button class="primary" id="enable">Tap to enable</button>
+    <button class="ghost" id="enableTour">New here? Take the quick tour</button>
   </div>
 </div>
 
 <main>
   <header class="masthead chrome">
     <div class="wordmark">Standby<span class="beep" aria-hidden="true"></span></div>
-    <span class="tag">Dry-fire IPSC timer</span>
+    <div class="mast-right">
+      <span class="tag">Dry-fire IPSC timer</span>
+      <button class="icon" id="help" aria-label="Quick tour of the commands and modes" title="Quick tour">?</button>
+    </div>
   </header>
   <div class="card" id="display">
     <div role="status" aria-live="polite" aria-atomic="true">
@@ -349,6 +398,20 @@
   </div>
   <p class="foot chrome">Times run from the beep as the mic hears it, so speaker/mic latency cancels out. Saying “bang” adds your voice reaction time: use the click for numbers. <a href="https://github.com/AlexanderBrevig/standby">Source</a></p>
 </main>
+
+<dialog id="tour" aria-labelledby="tourTitle">
+  <div class="tour-top">
+    <span class="tour-step" id="tourStep"></span>
+    <button class="icon" id="tourClose" aria-label="Close the tour">✕</button>
+  </div>
+  <h2 id="tourTitle" tabindex="-1" autofocus></h2>
+  <div id="tourBody"></div>
+  <div class="tour-dots" id="tourDots" aria-hidden="true"></div>
+  <div class="row tour-nav">
+    <button id="tourBack">Back</button>
+    <button class="primary" id="tourNext">Next</button>
+  </div>
+</dialog>
 
 <script>
 "use strict";
@@ -1969,8 +2032,160 @@ $("log").addEventListener("click", e => {
   renderLog();
 });
 
+// ---------- quick tour ----------
+// A short wizard for a first-time user: what a string sounds like, what to say, how to read a
+// course. "Hear it" lets the announcer demonstrate. While it's open the app doesn't listen,
+// so the announcer saying "restart" can't start a string.
+const mn = marks => `<div class="mn">${marks.split(" ").map((t, i) =>
+  `<span class="${i === 0 ? "mk-start" : /^P/.test(t) ? "mk-paper" : t === "S" ? "mk-steel" : t === "R" ? "mk-reload" : t === "M" ? "mk-move" : ""}">${t}</span>`).join(" ")}</div>`;
+const TOUR = [
+  {
+    title: "Welcome to the line",
+    body: `<p>Standby runs a dry-fire string the way a range officer would: the range commands, a random start beep, and a timer that listens for the click of your trigger.</p>
+      <p>Prop the phone up a few metres away. Everything can be done by voice, and the buttons always work too.</p>
+      <p class="tour-safety">Before every session: no ammunition in the room. Check the gun twice.</p>`,
+  },
+  {
+    title: "One string",
+    body: `<ol class="tl">
+        <li><span class="n">1</span><b>Load and make ready</b><small>Get into your start position.</small></li>
+        <li><span class="n">2</span><b>Are you ready?</b><small>Silence means yes. Say “not ready” to hold.</small></li>
+        <li><span class="n">3</span><b>Standby</b><small>Then a random pause of 1–4 seconds.</small></li>
+        <li class="beepline"><span class="n">4</span><b>BEEP</b><small>Draw and shoot. Every click is timed.</small></li>
+        <li><span class="n">5</span><b>If you are finished, unload and show clear</b><small>Shoot again within a moment and the string goes on.</small></li>
+        <li><span class="n">6</span><b>Range is clear</b><small>Your times are read out and logged.</small></li>
+      </ol>
+      <div class="tour-actions"><button data-act="string">Hear it</button></div>`,
+  },
+  {
+    title: "Talk to it",
+    body: `<div class="cmds">
+        <span class="say">restart</span><small>Start a string, or resume a paused set.</small>
+        <span class="say">not ready</span><small>Hold, after “Are you ready?”.</small>
+        <span class="say">continue</span><small>After a briefing: go on to “make ready”.</small>
+        <span class="say">repeat</span><small>Hear the briefing again.</small>
+        <span class="say">next</span><small>Another course instead.</small>
+        <span class="say">stop</span><small>Between reps: pause the set.</small>
+      </div>
+      <p class="muted">Voice commands use Chrome's speech recognition and need a network connection. The full list is under “Voice commands”.</p>`,
+  },
+  {
+    title: "Tune the mic",
+    body: `<p>The timer hears a shot as any sound louder than the threshold. Set it once for your room and your gun:</p>
+      <ol class="tl">
+        <li><span class="n">1</span><b>Open the mic test</b><small>Under “Detector &amp; timing”.</small></li>
+        <li><span class="n">2</span><b>Dry fire a few times</b><small>Each click should flash the meter orange.</small></li>
+        <li><span class="n">3</span><b>Move the threshold</b><small>Just above room noise, just below the click.</small></li>
+      </ol>
+      <p class="muted">Times run from the beep as the mic hears it, so speaker and mic delay cancel out. Use the trigger click, not your voice, for numbers worth logging.</p>
+      <div class="tour-actions"><button data-act="mictest">Open the mic test</button></div>`,
+  },
+  {
+    title: "Three modes",
+    body: `<div class="modes">
+        <div><b>Course</b>An open string, like a stage: shoot until you're done, it ends on silence, then the closing commands.</div>
+        <div><b>Drill</b>A fixed pattern you repeat, like Doubles or the Bill drill. It ends on the last expected shot, so reps go quickly.</div>
+        <div><b>Called</b>A different course every rep, picked from a list or made up from the targets you have set up. You hear it in the briefing.</div>
+      </div>`,
+  },
+  {
+    title: "Reading a course",
+    body: `<div class="tour-face">${mn("T P S R P")}<p class="brief">From table. Paper, steel, reload, paper.</p></div>
+      <div class="legend">
+        <span class="mk-start">H L T</span><span>Start: holster, low ready, table</span>
+        <span class="mk-paper">P</span><span>Paper: two shots (P1 = one shot, 2P = two papers)</span>
+        <span class="mk-steel">S</span><span>Steel: one hit</span>
+        <span class="mk-reload">R</span><span>Reload</span>
+        <span class="mk-move">M</span><span>Move to a new position</span>
+      </div>
+      <p class="muted">The briefing is read out and the letters stay on screen until the beep, so you can plan.</p>`,
+  },
+  {
+    title: "Score and par",
+    body: `<p>Turn on scoring and, after the string, say one word per shot. A steel hit counts as alpha.</p>
+      <p><span class="say">alpha</span> <span class="say">charlie</span> <span class="say">delta</span> <span class="say">mike</span> or <span class="say">all alpha</span></p>
+      <p>You get points and your <b>hit factor</b>: points divided by time, the number IPSC ranks on.</p>
+      <p><b>Par</b> is a second beep: be done before it. Fixed par stays put. Adaptive par tightens after two passes in a row and eases after a miss, so it follows you as you get faster.</p>`,
+  },
+  {
+    title: "Hands-free setup",
+    body: `<p>Change the drill without walking to the phone. While it's idle, say <span class="say">setup</span> and what you want, in any order:</p>
+      <p><span class="say">setup bill drill from table, five reps</span></p>
+      <p>It reads back what it understood. Say <span class="say">confirm</span> to apply or <span class="say">cancel</span>. Add “and go” to start at once, and say <span class="say">setup?</span> to hear what's set.</p>
+      <div class="tour-actions"><button data-act="setup">Hear an example</button></div>`,
+  },
+  {
+    title: "Your first session",
+    body: `<p>Start simple: Course mode from the holster, a few strings to get the feel of the commands and the beep.</p>
+      <p>Then try a drill. Doubles is a good first one: two shots on one paper, five reps.</p>
+      <div class="tour-actions"><button data-act="doubles">Load Doubles, five reps</button></div>
+      <p class="muted">Open this tour again any time with the ? button.</p>`,
+  },
+];
+let tourStep = 0;
+function renderTour() {
+  const step = TOUR[tourStep];
+  $("tourStep").textContent = `${tourStep + 1} / ${TOUR.length}`;
+  $("tourTitle").textContent = step.title;
+  $("tourBody").innerHTML = step.body;
+  $("tourDots").innerHTML = TOUR.map((_, i) => `<i class="${i === tourStep ? "on" : ""}"></i>`).join("");
+  $("tourBack").disabled = tourStep === 0;
+  if ($("tour").open) $("tourTitle").focus();   // screen readers hear the new step
+  $("tourNext").textContent = tourStep === TOUR.length - 1 ? "Done" : "Next";
+}
+function openTour(at = 0) {
+  if (state !== "idle" && state !== "locked") return;
+  stopListening(); stopListening = () => {};
+  tourStep = at;
+  renderTour();
+  $("tour").showModal();
+}
+function closeTour() {
+  if ($("tour").open) $("tour").close();
+}
+$("tour").addEventListener("close", () => {
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  save("standby.toured", true);
+  if (state === "idle") { idleListen(); if (statusText === "Idle") $("hint").textContent = idleHint(); }
+});
+$("tourBack").addEventListener("click", () => { if (tourStep > 0) { tourStep--; renderTour(); } });
+$("tourNext").addEventListener("click", () => { if (tourStep < TOUR.length - 1) { tourStep++; renderTour(); } else closeTour(); });
+$("tourClose").addEventListener("click", closeTour);
+$("tour").addEventListener("keydown", e => {
+  if (e.key === "ArrowRight") $("tourNext").click();
+  if (e.key === "ArrowLeft") $("tourBack").click();
+});
+$("tourBody").addEventListener("click", async e => {
+  const act = e.target.closest("[data-act]") && e.target.closest("[data-act]").dataset.act;
+  if (act === "string") {   // the start of a real string, beep included
+    await speak("Load and make ready.");
+    await sleep(600);
+    await speak("Are you ready?");
+    await sleep(900);
+    await speak("Standby.");
+    if (ctx && $("tour").open) beepAt(ctx.currentTime + 1 + Math.random() * 1.5);
+  }
+  if (act === "setup") {
+    await speak("Setup bill drill from table, five reps.");
+    await sleep(400);
+    await speak(`${describeSetup({ ...S, mode: "drill", pattern: "P6", startPos: "table", reps: 5 }, ["mode", "pattern", "startPos", "reps"])} Say confirm or cancel.`);
+  }
+  if (act === "mictest") {
+    closeTour();
+    $("test").closest("details").open = true;
+    $("test").scrollIntoView({ block: "center" });
+    if (state === "idle") toggleTest();
+  }
+  if (act === "doubles") {
+    applySettings({ mode: "drill", pattern: "P", reps: 5 });
+    closeTour();
+    setStatus("Doubles loaded", idleHint());
+  }
+});
+$("help").addEventListener("click", () => openTour());
+
 // ---------- wiring ----------
-$("enable").addEventListener("click", async () => {
+async function enable(tour) {
   ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
   await ctx.resume();
   if ("speechSynthesis" in window) speechSynthesis.speak(new SpeechSynthesisUtterance(""));   // unlock speech on mobile
@@ -1979,7 +2194,11 @@ $("enable").addEventListener("click", async () => {
   $("overlay").remove();
   keepAwake();
   goIdle();
-});
+  if (tour) openTour();
+  else if (!load("standby.toured", false)) setStatus("Idle", "New here? Tap ? for a one-minute tour.");
+}
+$("enable").addEventListener("click", () => enable(false));
+$("enableTour").addEventListener("click", () => enable(true));
 $("start").addEventListener("click", () => {
   if (state === "setup") { if (confirmGo) confirmGo(); }
   else if (state === "idle") startSession();
