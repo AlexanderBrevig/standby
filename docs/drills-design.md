@@ -19,7 +19,7 @@ A pattern is a sequence of tokens separated by spaces (case-insensitive):
 | `R` | reload | 0 |
 | `M` | movement / position change | 0 |
 
-Prefix = number of targets, suffix = shots per paper. Why have a suffix at all: IPSC scores the best two hits per paper by default, so 2 is the right default. IPSC scoring is Comstock only (rule 9.2.1: unlimited shots, a *stipulated number of hits* per target scores). Rule 9.5.1 makes "best two hits" the default "unless otherwise specified in the written stage briefing", so a stage may stipulate one or three scoring hits per paper. It can't cap the shots fired (8.1.4; a fixed round count, "Virginia Count", is USPSA, not IPSC). So `P1` / `P3` mean the number of hits that score, which in dry fire is the number of shots you plan to fire. Drills like the Bill drill put more than two on one paper. Generated reloads always fall between two targets, which matches rule 1.1.5.2 for mandatory reloads (after the first target, before the last). Steel takes no suffix: it must fall (one hit). Steel takes no suffix: one hit.
+Prefix = number of targets, suffix = shots per paper. Why have a suffix at all: IPSC scores the best two hits per paper by default, so 2 is the right default. IPSC scoring is Comstock only (rule 9.2.1: unlimited shots, a *stipulated number of hits* per target scores). Rule 9.5.1 makes "best two hits" the default "unless otherwise specified in the written stage briefing", so a stage may stipulate one or three scoring hits per paper. It can't cap the shots fired (8.1.4; a fixed round count, "Virginia Count", is USPSA, not IPSC). So `P1` / `P3` mean the number of hits that score, which for the timer is the number of shots you plan to fire. Drills like the Bill drill put more than two on one paper. Generated reloads always fall between two targets, which matches rule 1.1.5.2 for mandatory reloads (after the first target, before the last). Steel takes no suffix: it must fall (one hit). Steel takes no suffix: one hit.
 
 Rules: at least one target. `R` and `M` only between targets, never first or last, never two in a row. `x` and `n` are 1–12. `xP` expands to x separate targets, so the gaps between them are transitions. An invalid pattern disables Start and shows the error inline.
 
@@ -68,7 +68,7 @@ A **Start** dropdown, separate from the pattern, applies in every mode: Holster 
 
 - It names the first gap: `draw` (holster), `first shot` (low ready), `pickup` (table).
 - Adaptive par is kept per pattern **and** start: the key is `P S` for holster (unchanged) and `P S @ready` / `P S @table` otherwise. A draw and a shot from ready differ by several tenths, so they mustn't share a par.
-- **Briefing:** the start command comes with the course of fire: "From table. Paper, paper, steel. Make ready." / "Paper, paper, steel. Load and make ready." (holster isn't named unless the start is random). Called mode briefs every rep, since the pattern changes. **Confirmation** (setting, on by default): the briefing ends with "Say continue to proceed." and waits, however long, for "continue" / "proceed" / "go ahead" or the Continue button (the Start button relabelled) before the start command. "Repeat" reads it again. "Next" / "skip" drops it and briefs another (a new pattern in Called mode). Listening only starts after the announcer has finished, so its own "continue" isn't heard as the answer. No briefing (Course from the holster) means no confirmation. **Display:** while the briefing waits and until the beep, the status line shows the briefing text and the big display shows the course mnemonic: start letter (H holster, L low ready, T table), then every target (`P`, `S`, `P1` for a non-default count), `R` reload, `M` movement. "From table, paper, steel, paper" → `T P S P`. It is shrunk to fit one line (container query units) and replaced by the timer at the beep. (An earlier version called the pattern after "Are you ready?", just before "Standby"; that was too late and too easy to miss, so it moved into the briefing.) The start command follows the start position: "Make ready" for a table start (nothing to load), "Load and make ready" otherwise. There is no setting for it.
+- **Briefing:** the start command comes with the course of fire: "From table. Paper, paper, steel. Make ready." / "Paper, paper, steel. Load and make ready." (holster isn't named unless the start is random). Called mode briefs every rep, since the pattern changes. **Confirmation** (setting "Wait for continue before each string", on by default, in the How section): every rep, Drill mode included, opens with the briefing, which ends with "Say continue to proceed." and waits, however long, for "continue" / "proceed" / "go ahead" or the Continue button (the Start button relabelled) before the start command. "Repeat" reads it again. "Next" / "skip" drops it and briefs another (a new pattern in Called mode). Listening only starts after the announcer has finished, so its own "continue" isn't heard as the answer. No briefing (Course from the holster) means no confirmation. **Display:** while the briefing waits and until the beep, the status line shows the briefing text and the big display shows the course mnemonic: start letter (H holster, L low ready, T table), then every target (`P`, `S`, `P1` for a non-default count), `R` reload, `M` movement. "From table, paper, steel, paper" → `T P S P`. It is shrunk to fit one line (container query units) and replaced by the timer at the beep. (An earlier version called the pattern after "Are you ready?", just before "Standby"; that was too late and too easy to miss, so it moved into the briefing.) The start command follows the start position: "Make ready" for a table start (nothing to load), "Load and make ready" otherwise. There is no setting for it.
 - Random picks a start per rep, and every rep gets the full start command for it ("Load and make ready. Holster.", "Make ready. Gun on the table."), with the make-ready time to change position. The set summary then skips totals, since they don't compare.
 
 ## 3. Drill string flow
@@ -88,7 +88,7 @@ spoken summary (time, HF, par result)
 - **Too few shots:** if fewer than N peaks arrive, the string ends on the existing silence timeout. The summary says "4 of 5 shots heard". The rep is logged as incomplete and is not scored. It leaves adaptive par unchanged: a click the mic missed is not the shooter's fault.
 - **Extra shots** inside the grace window are resolved by §4 and flagged ("1 extra sound ignored").
 - **No closing commands** in Drill/Called mode. The gun isn't being unloaded between reps. The session as a whole still starts with Make ready.
-- **Reps:** set size N (default 1 = single string) and rep interval (default 5 s). Saying "stop" or "hold" at any point pauses the set. "Restart" resumes it.
+- **Reps:** set size N (default 1 = single string). Between reps without a briefing there is a short "Next in N" pause, N being the make-ready time (there used to be a separate rep interval setting); when every rep opens with a briefing to confirm, the briefing is the pause. Saying "stop" or "hold" at any point pauses the set. "Restart" resumes it.
 - **Restart:** the Start button is always clickable. While a string runs it reads **Restart**: the current rep is dropped and a new one starts at once (Called mode draws a new pattern, a set keeps its place). During the briefing it reads **Continue**.
 
 ## 4. Extra sounds and reloads
@@ -101,7 +101,7 @@ Approach: **collect every peak and decide afterwards which ones were shots.**
 - **Resolution (`planShots`)** picks which N of the P peaks were shots. Each dropped peak must have an explanation: reload noise inside a reload gap (cheap within 1 s after the last shot or 0.35 s before the next, dearer in between), an echo within 0.15 s of a shot, holster or rack noise well after the last shot. Anything else costs a lot. Each kept gap must be humanly possible: splits ≥ 0.1 s, reloads ≥ 0.8 s (under 1.2 s is possible but suspect), movement ≥ 0.3 s. Among plausible choices, shorter splits win. It's an ordered-subset DP (O(N·P³), P is small). The first version simply minimised split time, which reduces to "keep the earliest peaks" and dropped the real last shot whenever an echo followed it. A review caught that, and its 13 noise sequences are now fixed cases in the self test.
 - The live display shows raw peaks during the string. The summary and log show the resolved shots.
 
-Needs a test with a real gun: how loud is mag seating compared with the dry-fire click? If it's routinely louder, an extra option could raise the threshold during the expected reload gap.
+Needs a test with a real gun: how loud is mag seating compared with a shot? If it's routinely louder, an extra option could raise the threshold during the expected reload gap.
 
 ## 5. Spoken scoring
 
@@ -140,6 +140,7 @@ Called mode can take its patterns from the **pool** or from **My targets**: what
 
 - Each course uses a random selection of those targets, each at most once, in random order. Its length is between **Targets per course** min and max (default 3–6, capped at what's available), so a lone `P` (better done in Drill mode) doesn't come up.
 - **Reload chance** (default 20 %): the chance that a course gets one reload, placed at a random point between two targets.
+- **Movement chance** (default 30 %): the chance of a "move" between two targets; the shooter picks the new spot (there are no designated positions). Courses of five or more targets can get a second move at half the chance. Reloads and moves each take their own gap, so a move is never next to the reload, nor first or last. `M` in "my targets" is refused with a pointer to this setting.
 - The same course never comes twice in a row.
 - Adaptive par is off for generated courses. Par is kept per pattern and generated courses rarely repeat, so it would stay in calibration. Fixed par works.
 
@@ -176,7 +177,7 @@ Changing the drill without touching the phone. While idle, a transcript starting
 ## 9. Settings changes
 
 Grouped in the Settings card:
-- **Drill:** Mode, Start, Pattern (preset + text), Pool (Called), Reps, Rep interval
+- **Drill:** Mode, Start, Pattern (preset + text), Pool (Called), Reps
 - **Par:** Off / Fixed (value) / Adaptive (step), with a "Reset adaptive par" button
 - **Scoring:** Score after string, Power factor
 - Existing timing/detector settings unchanged. "End after silence" applies to Course mode and to incomplete drill strings.

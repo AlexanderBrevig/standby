@@ -59,7 +59,7 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   check("stop during pause clears it", pending === null && state === "idle" && $("start").textContent === "Start", `${JSON.stringify(pending)} ${state} ${$("start").textContent}`);
 
   // 10. restart during the final set summary starts a new set, not the summary again
-  setup({ mode: "drill", pattern: "P1", reps: 2, repInterval: 2 }); SAID.length = 0; rep = 0; PLAN = () => [1.0];
+  setup({ mode: "drill", pattern: "P1", reps: 2 }); SAID.length = 0; rep = 0; PLAN = () => [1.0];
   startSession();
   await until(() => SAID.some(t => t.startsWith("Set done")), 30000);
   $("start").click();   // Restart rep during the summary
@@ -136,6 +136,129 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   idleText("restart"); check("restart starts", starts === 1, starts);
   S.handsFree = false; idleText("setup start position table"); check("hands-free off: \"start\" starts as before", starts === 2, starts); S.handsFree = true;
   startSession = origStart;
+
+  // 19. quick tour: opens when idle, steps through, the last step closes it; actions work
+  localStorage.removeItem("standby.toured");
+  $("help").click();
+  check("tour opens", $("tour").open && $("tourStep").textContent === "1 / " + TOUR.length, $("tourStep").textContent);
+  check("tour back disabled on step 1", $("tourBack").disabled);
+  for (let k = 1; k < TOUR.length; k++) $("tourNext").click();
+  check("tour last step", $("tourNext").textContent === "Done" && $("tourTitle").textContent === "Your first session", $("tourTitle").textContent);
+  $("tourBody").querySelector("[data-act=doubles]").click(); await sleep(100);
+  check("tour loads Doubles", !$("tour").open && S.mode === "drill" && S.pattern === "P" && S.reps === 5, JSON.stringify([$("tour").open, S.mode, S.pattern, S.reps]));
+  check("tour remembered", load("standby.toured", false) === true);
+  state = "running"; $("help").click(); check("no tour while running", !$("tour").open); state = "idle";
+
+  // 20. without a first tap, a string can't start (browsers block the audio): it says so instead
+  gestured = false;
+  check("no start before a tap", startSession() === false && state === "idle" && statusText === "Tap to wake the audio", statusText);
+  check("idle hint asks for a tap", idleHint() === "Tap anywhere once to wake the audio.");
+  gestured = true;
+
+  // 21. "repeat" shoots the last course again (called mode, random start); "restart" draws a new one
+  setup({ mode: "called", calledFrom: "pool", pool: "P S\n2S\nP\nP S P\n2P S", startPos: "random", reps: 1 }); SAID.length = 0; rep = 0;
+  PLAN = s => s.drill.shots.map((_, i) => 1 + i * 0.3);
+  localStorage.removeItem("standby.log");
+  startSession(); await until(() => state === "idle");
+  const firstRun = lastLog();
+  idleText("repeat"); await until(() => state === "running"); await until(() => state === "idle");
+  const again = lastLog();
+  check("repeat: same course and start", again && firstRun && again.at !== firstRun.at && again.pattern === firstRun.pattern && again.start === firstRun.start, JSON.stringify([firstRun && [firstRun.pattern, firstRun.start], again && [again.pattern, again.start]]));
+  check("idle hint offers the same course", /same course/.test(idleHint()), idleHint());
+  // between reps
+  setup({ mode: "called", calledFrom: "pool", pool: "P S\n2S\nP\nP S P\n2P S", startPos: "random", reps: 2 }); SAID.length = 0; rep = 0;
+  REPLIES = [[/^Next in/, "repeat"]];
+  localStorage.removeItem("standby.log");
+  startSession(); await until(() => state === "idle");
+  const two = load("standby.log", []);
+  check("repeat between reps", two.length === 2 && two[0].pattern === two[1].pattern && two[0].start === two[1].start && SAID.includes("Same course again."), JSON.stringify(two.map(e => [e.pattern, e.start])));
+  // changed settings: no repeat
+  applySettings({ startPos: "holster", mode: "drill" }); check("no repeat after settings change", !canRepeat());
+
+  // 22. mic sheet: room, three clicks, threshold between; Done goes back to idle; "Mic test" opens it as a meter
+  localStorage.removeItem("standby.calibrated"); applySettings({ threshold: DEFAULTS.threshold }); localStorage.removeItem("standby.calibrated");
+  check("uncalibrated at default", !isCalibrated());
+  await openCalib(true);
+  check("mic sheet open", $("calib").open && state === "test" && calib.phase === "room");
+  for (let k = 0; k < 40; k++) { calibPeak(0.01, ctx.currentTime); await sleep(50); }   // the room: -40 dB
+  check("room measured", calib.phase === "clicks", calib && calib.phase);
+  for (let k = 0; k < 3; k++) { calibPeak(0.3, ctx.currentTime); await sleep(400); calibPeak(0.01, ctx.currentTime); }   // clicks: about -10 dB
+  const want = Math.round(-40 + (ampDb(0.3) + 40) * 0.45);
+  check("calibrated threshold", S.threshold === want && $("threshold").value === String(want) && isCalibrated() && calib.phase === "done", S.threshold + " " + (calib && calib.phase));
+  testHit(ctx.currentTime); check("clicks counted after", /1<\/b> shot heard/.test($("calibHits").innerHTML), $("calibHits").innerHTML);
+  $("calibDone").click(); await sleep(100);
+  check("mic sheet closes to idle", !$("calib").open && state === "idle", state);
+  $("test").click(); await sleep(100);
+  check("mic test opens the sheet as a meter", $("calib").open && calib.phase === "done" && new RegExp("Threshold " + want + " dB").test($("calibStatus").textContent), $("calibStatus").textContent);
+  $("calibClose").click(); await sleep(100);
+  applySettings({ threshold: DEFAULTS.threshold });
+
+  // 23. first visit: the tour, then the mic setup
+  localStorage.removeItem("standby.calibrated"); applySettings({ threshold: DEFAULTS.threshold }); localStorage.removeItem("standby.calibrated");
+  calibAfterTour = true; openTour();
+  check("first visit: tour first", $("tour").open && !$("calib").open);
+  for (let k = 1; k < TOUR.length; k++) $("tourNext").click();
+  $("tourNext").click(); await sleep(100);   // Done
+  check("first visit: mic setup after the tour", !$("tour").open && $("calib").open && state === "test" && calib.phase === "room", `${$("tour").open} ${$("calib").open} ${state}`);
+  closeCalib(); await sleep(100);
+  check("first visit: then go", state === "idle" && isCalibrated(), state);
+  openTour(); closeTour(); await sleep(100);
+  check("later tours don't reopen the mic setup", !$("calib").open && state === "idle");
+  applySettings({ threshold: DEFAULTS.threshold });
+
+  // 24. Stop during a long called briefing: back to the idle face, the preview fits
+  setup({ mode: "called", calledFrom: "pool", pool: "2P S R P S 2S M P 2S", confirm: true, startPos: "holster", reps: 1 }); SAID.length = 0; REPLIES = [];
+  startSession(); await until(() => confirmGo !== null);
+  check("briefing shows the long course", $("big").classList.contains("mn") && document.body.classList.contains("running"));
+  $("stop").click(); await sleep(100);
+  const big = $("big");
+  check("stop: idle face with the preview", state === "idle" && statusText === "Idle" && big.textContent.replace(/\s+/g, " ").trim() === setupMarks(S), `${statusText} | ${big.textContent}`);
+  check("stop: nothing overflows", big.scrollWidth <= big.clientWidth + 1, `${big.scrollWidth} > ${big.clientWidth}`);
+
+  // 25. restart = the same course again; next / Start = a new one; the Restart rep button keeps the course
+  setup({ mode: "called", calledFrom: "pool", pool: "P S\n2S\nP\nP S P\n2P S", startPos: "random", confirm: false, reps: 1 }); SAID.length = 0; rep = 0; REPLIES = [];
+  PLAN = s => s.drill.shots.map((_, i) => 1 + i * 0.3);
+  localStorage.removeItem("standby.log");
+  startSession(); await until(() => state === "idle");
+  const a = lastLog();
+  idleText("restart"); await until(() => state === "running"); await until(() => state === "idle");
+  const b = lastLog();
+  check("restart: same course", b.at !== a.at && b.pattern === a.pattern && b.start === a.start, JSON.stringify([[a.pattern, a.start], [b.pattern, b.start]]));
+  idleText("next"); await until(() => state === "running"); await until(() => state === "idle");
+  const c = lastLog();
+  check("next: a new course", c.at !== b.at && c.pattern !== b.pattern, JSON.stringify([b.pattern, c.pattern]));
+  setup({ mode: "called", calledFrom: "pool", pool: "P S\n2S\nP\nP S P\n2P S", startPos: "holster", confirm: true, reps: 1 }); SAID.length = 0; REPLIES = [];
+  startSession(); await until(() => confirmGo !== null);
+  const before = currentCourse.drill.key;
+  confirmGo = null; $("start").click(); await until(() => confirmGo !== null);   // Restart rep (not Continue)
+  check("Restart rep button: same course", currentCourse.drill.key === before && state === "running", `${before} -> ${currentCourse.drill.key}`);
+  $("stop").click(); await sleep(100);
+
+  // 26. every rep briefed: no countdown between reps; "restart" in the briefing goes back to the last course; "stop" pauses
+  setup({ mode: "called", calledFrom: "pool", pool: "P S\n2S\nP\nP S P\n2P S", startPos: "holster", confirm: true, reps: 2 }); SAID.length = 0; rep = 0;
+  PLAN = s => s.drill.shots.map((_, i) => 1 + i * 0.3);
+  REPLIES = [[/Say continue/, "continue"], [/Say continue/, "restart"], [/Say continue/, "continue"]];
+  localStorage.removeItem("standby.log");
+  startSession(); await until(() => state === "idle", 60000);
+  const two2 = load("standby.log", []);
+  check("no countdown when every rep is briefed", !SAID.some(t => /^Next in/.test(t)), SAID.join(" | "));
+  check("restart in the briefing: the last course again", two2.length === 2 && two2[0].pattern === two2[1].pattern, JSON.stringify(two2.map(e => e.pattern)));
+  setup({ mode: "called", calledFrom: "pool", pool: "P S\n2S\nP", startPos: "holster", confirm: true, reps: 3 }); SAID.length = 0; rep = 0;
+  REPLIES = [[/Say continue/, "continue"], [/Say continue/, "stop"]];
+  startSession(); await until(() => state === "idle", 60000);
+  check("stop in the briefing pauses the set", pending && pending.rep === 1 && SAID.includes("Set paused. Say restart to continue."), JSON.stringify(pending && pending.rep));
+  pending = null;
+  // a drill with "wait for continue": a briefing before every rep, no countdown; with it off: the countdown
+  setup({ mode: "drill", pattern: "P1", startPos: "holster", confirm: true, reps: 2 }); SAID.length = 0; rep = 0; REPLIES = [[/Say continue/, "continue"], [/Say continue/, "continue"]]; PLAN = () => [1.0];
+  startSession(); await until(() => state === "idle", 60000);
+  check("drill: continue before every rep", SAID.filter(t => /Say continue/.test(t)).length === 2 && !SAID.some(t => /^Next in/.test(t)), SAID.join(" | "));
+  setup({ mode: "drill", pattern: "P1", startPos: "holster", confirm: false, reps: 2 }); SAID.length = 0; rep = 0; REPLIES = []; PLAN = () => [1.0];
+  startSession(); await until(() => state === "idle", 60000);
+  check("drill without continue: the countdown", SAID.some(t => /^Next in/.test(t)) && !SAID.some(t => /Say continue/.test(t)), SAID.join(" | "));
+
+  // 27. a saved setup from before the rep interval was retired still loads
+  applySettings({ repInterval: 5, reps: 2 }); check("retired setting ignored", S.reps === 2 && !("repInterval" in S) && !LOG.some(l => /^(ERROR|REJECT)/.test(l)));
+  applySettings({ reps: 1 });
 
   // 14. generated course + score over 12 shots prompt uses digits
   check("numWord 15", numWord(15) === "15");
