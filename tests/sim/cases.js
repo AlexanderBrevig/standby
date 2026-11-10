@@ -248,10 +248,13 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   startSession(); await until(() => state === "idle", 60000);
   check("stop in the briefing pauses the set", pending && pending.rep === 1 && SAID.includes("Set paused. Say restart to continue."), JSON.stringify(pending && pending.rep));
   pending = null;
-  // drill mode with a fixed start keeps the countdown
-  setup({ mode: "drill", pattern: "P1", startPos: "holster", confirm: true, reps: 2 }); SAID.length = 0; rep = 0; REPLIES = [[/Say continue/, "continue"]]; PLAN = () => [1.0];
+  // a drill with "wait for continue": a briefing before every rep, no countdown; with it off: the countdown
+  setup({ mode: "drill", pattern: "P1", startPos: "holster", confirm: true, reps: 2 }); SAID.length = 0; rep = 0; REPLIES = [[/Say continue/, "continue"], [/Say continue/, "continue"]]; PLAN = () => [1.0];
   startSession(); await until(() => state === "idle", 60000);
-  check("fixed drill keeps the countdown", SAID.some(t => /^Next in/.test(t)), SAID.join(" | "));
+  check("drill: continue before every rep", SAID.filter(t => /Say continue/.test(t)).length === 2 && !SAID.some(t => /^Next in/.test(t)), SAID.join(" | "));
+  setup({ mode: "drill", pattern: "P1", startPos: "holster", confirm: false, reps: 2 }); SAID.length = 0; rep = 0; REPLIES = []; PLAN = () => [1.0];
+  startSession(); await until(() => state === "idle", 60000);
+  check("drill without continue: the countdown", SAID.some(t => /^Next in/.test(t)) && !SAID.some(t => /Say continue/.test(t)), SAID.join(" | "));
 
   // 27. a saved setup from before the rep interval was retired still loads
   applySettings({ repInterval: 5, reps: 2 }); check("retired setting ignored", S.reps === 2 && !("repInterval" in S) && !LOG.some(l => /^(ERROR|REJECT)/.test(l)));

@@ -363,6 +363,8 @@
     <div data-modes="drill called">
       <label>Reps <input type="number" id="reps" min="1" max="50" step="1"></label>
     </div>
+    <label>Wait for “continue” before each string <input type="checkbox" id="confirm">
+      <small>On: the briefing waits until you say “continue” or tap Continue, so there's time to reload or reset. Off: it runs straight on, with a countdown between reps (the make-ready time, 3 s by default).</small></label>
     <div class="field"><span class="field-label" id="parMode-label">Par</span><select id="parMode" data-seg aria-labelledby="parMode-label" hidden><option value="off">Off</option><option value="fixed">Fixed</option><option value="adaptive">Adaptive</option></select>
       <small id="parHelp"></small></div>
     <label data-par="fixed">Par time (s) <input type="number" id="par" min="0.3" max="30" step="0.05"></label>
@@ -1601,8 +1603,8 @@ async function setupFlow(alts) {
 let currentCourse = null, lastShot = null;
 const sameSettings = c => !!c && c.sig === setSig();
 const canRepeat = () => sameSettings(lastShot) && (S.mode === "called" || S.startPos === "random");
-// when every rep opens with a briefing to confirm, that's the pause between reps: no countdown
-const briefsEveryRep = () => S.confirm && (S.mode === "called" || S.startPos === "random");
+// with "wait for continue", every rep opens with a briefing to confirm: that's the pause between reps
+const briefsEveryRep = () => S.confirm;
 function startSession(opts = {}) {
   if (state !== "idle" || plan.error) return false;
   if (!gestured) { setStatus("Tap to wake the audio", "Browsers only play sound after a tap. Tap anywhere once, then say “restart”."); return false; }
@@ -1688,8 +1690,8 @@ async function runString({ first, drill, start, set }, alive) {
   if (drill || start !== "holster") setMnemonic([STARTS[start].mark, drill && drill.marks].filter(Boolean).join(" "));
   else setBig("0.00");
 
-  // random starts and called patterns change every rep, so those reps all get a briefing
-  if (first || S.startPos === "random" || S.mode === "called") {
+  // the first rep, and every rep that waits for "continue" or whose course or start changes, gets a briefing
+  if (first || S.confirm || S.startPos === "random" || S.mode === "called") {
     const b = await briefing(drill, start, alive);
     if (b === "hold") return "hold";
     if (!b) return null;
