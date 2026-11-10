@@ -229,10 +229,29 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   check("next: a new course", c.at !== b.at && c.pattern !== b.pattern, JSON.stringify([b.pattern, c.pattern]));
   setup({ mode: "called", calledFrom: "pool", pool: "P S\n2S\nP\nP S P\n2P S", startPos: "holster", confirm: true, reps: 1 }); SAID.length = 0; REPLIES = [];
   startSession(); await until(() => confirmGo !== null);
-  const before = lastCourse.drill.key;
+  const before = currentCourse.drill.key;
   confirmGo = null; $("start").click(); await until(() => confirmGo !== null);   // Restart rep (not Continue)
-  check("Restart rep button: same course", lastCourse.drill.key === before && state === "running", `${before} -> ${lastCourse.drill.key}`);
+  check("Restart rep button: same course", currentCourse.drill.key === before && state === "running", `${before} -> ${currentCourse.drill.key}`);
   $("stop").click(); await sleep(100);
+
+  // 26. every rep briefed: no countdown between reps; "restart" in the briefing goes back to the last course; "stop" pauses
+  setup({ mode: "called", calledFrom: "pool", pool: "P S\n2S\nP\nP S P\n2P S", startPos: "holster", confirm: true, reps: 2 }); SAID.length = 0; rep = 0;
+  PLAN = s => s.drill.shots.map((_, i) => 1 + i * 0.3);
+  REPLIES = [[/Say continue/, "continue"], [/Say continue/, "restart"], [/Say continue/, "continue"]];
+  localStorage.removeItem("standby.log");
+  startSession(); await until(() => state === "idle", 60000);
+  const two2 = load("standby.log", []);
+  check("no countdown when every rep is briefed", !SAID.some(t => /^Next in/.test(t)), SAID.join(" | "));
+  check("restart in the briefing: the last course again", two2.length === 2 && two2[0].pattern === two2[1].pattern, JSON.stringify(two2.map(e => e.pattern)));
+  setup({ mode: "called", calledFrom: "pool", pool: "P S\n2S\nP", startPos: "holster", confirm: true, reps: 3 }); SAID.length = 0; rep = 0;
+  REPLIES = [[/Say continue/, "continue"], [/Say continue/, "stop"]];
+  startSession(); await until(() => state === "idle", 60000);
+  check("stop in the briefing pauses the set", pending && pending.rep === 1 && SAID.includes("Set paused. Say restart to continue."), JSON.stringify(pending && pending.rep));
+  pending = null;
+  // drill mode with a fixed start keeps the countdown
+  setup({ mode: "drill", pattern: "P1", startPos: "holster", confirm: true, reps: 2 }); SAID.length = 0; rep = 0; REPLIES = [[/Say continue/, "continue"]]; PLAN = () => [1.0];
+  startSession(); await until(() => state === "idle", 60000);
+  check("fixed drill keeps the countdown", SAID.some(t => /^Next in/.test(t)), SAID.join(" | "));
 
   // 14. generated course + score over 12 shots prompt uses digits
   check("numWord 15", numWord(15) === "15");

@@ -1473,7 +1473,7 @@ function idleHint() {
 function idleText(t) {
   if (state !== "idle" || isSetupSpeech(t)) return;
   // "restart" / "repeat": the same course again; "next", "start" or the Start button: a new one
-  if (VOICE.again.test(t)) startSession({ again: true });
+  if (VOICE.again.test(t)) startSession({ course: canRepeat() ? lastShot : null });
   else if (VOICE.next.test(t) || VOICE.start.test(t)) startSession();
 }
 function idleFinal(alts) { const setup = alts.filter(isSetupSpeech); if (state === "idle" && setup.length) setupFlow(setup); }
@@ -1592,16 +1592,20 @@ async function setupFlow(alts) {
 }
 
 // ---------- sets ----------
-// the course last shot (pattern and start position), for "repeat"; only while the settings that made it hold
-let lastCourse = null;
-const canRepeat = () => !!lastCourse && lastCourse.sig === setSig() && (S.mode === "called" || S.startPos === "random");
+// Courses for "restart": the one being shot (the Restart rep button keeps it) and the last one finished
+// ("restart" while idle, between reps, or in the next briefing). Only while the settings that made them hold.
+let currentCourse = null, lastShot = null;
+const sameSettings = c => !!c && c.sig === setSig();
+const canRepeat = () => sameSettings(lastShot) && (S.mode === "called" || S.startPos === "random");
+// when every rep opens with a briefing to confirm, that's the pause between reps: no countdown
+const briefsEveryRep = () => S.confirm && (S.mode === "called" || S.startPos === "random");
 function startSession(opts = {}) {
   if (state !== "idle" || plan.error) return false;
   if (!gestured) { setStatus("Tap to wake the audio", "Browsers only play sound after a tap. Tap anywhere once, then say “restart”."); return false; }
   beginSet(opts);
   return true;
 }
-// opts.again: the first rep shoots the last course again
+// opts.course ({ drill, start }): the first rep shoots that course again
 async function beginSet(opts = {}) {
   const src = plan.src;
   const my = ++run;
@@ -1612,13 +1616,13 @@ async function beginSet(opts = {}) {
   const set = activeSet = pending && pending.sig === setSig() ? pending : { rep: 0, reps, results: [], lastKey: null, sig: setSig() };
   pending = null;
   renderButtons();
-  let first = true, keep = true, again = opts.again && canRepeat();
+  let first = true, keep = true, course = sameSettings(opts.course) ? opts.course : null;
   while (alive() && set.rep < reps) {
-    const drill = again ? lastCourse.drill : src ? nextDrill(src, set.lastKey) : null;
-    const start = again ? lastCourse.start : pickStart();
-    again = false;
+    const drill = course ? course.drill : src ? nextDrill(src, set.lastKey) : null;
+    const start = course ? course.start : pickStart();
+    course = null;
     if (drill) set.lastKey = drill.key;
-    lastCourse = { drill, start, sig: set.sig };
+    currentCourse = { drill, start, sig: set.sig };
     $("drillLine").textContent = drillLine(drill, set.rep, reps, start);
     renderParLine(drill && parKey(drill, start));
     const r = await runString({ first, drill, start, set }, alive);   // a finished rep counts itself into the set
@@ -1627,11 +1631,11 @@ async function beginSet(opts = {}) {
     if (r === "error") break;
     if (r === "hold") { if (reps > 1) pending = set; keep = false; break; }
     if (r.early && reps === 1) break;   // otherwise the rep is shot again
-    if (set.rep < reps) {
+    if (set.rep < reps && !briefsEveryRep()) {
       const next = await repPause(alive);
       if (!alive()) return;
       if (next === "hold") { pending = set; keep = false; break; }
-      again = next === "again";
+      if (next === "again") course = lastShot;
     }
   }
   if (!alive()) return;
@@ -1640,16 +1644,16 @@ async function beginSet(opts = {}) {
   if (!pending && set.results.length > 1) await setSummary(set.results, mixed, alive);
   if (alive()) goIdle(keep);
 }
-// Restart (button while running): drop the current rep and shoot the same course again at once; a good
-// course is worth another go. "Next" in a briefing calls restart(false) for a new one. An unfinished set
-// keeps its place, unless its settings changed meanwhile.
-function restart(again = true) {
+// Drop the current rep and start again at once with `course` (null: a new one). The Restart rep button keeps
+// the course being shot; "next" in a briefing passes null; "restart" in a briefing passes the last one shot.
+// An unfinished set keeps its place, unless its settings changed meanwhile.
+function restart(course = currentCourse) {
   if (state !== "running") return;
   const set = activeSet;
   abortRun();
   pending = set && set.rep < set.reps && set.sig === setSig() ? set : null;
   state = "idle";
-  if (!startSession({ again })) goIdle(true);
+  if (!startSession({ course })) goIdle(true);
 }
 async function repPause(alive) {
   const secs = Math.max(2, Math.round(S.repInterval) || DEFAULTS.repInterval);
@@ -1678,7 +1682,11 @@ async function runString({ first, drill, start, set }, alive) {
   else setBig("0.00");
 
   // random starts and called patterns change every rep, so those reps all get a briefing
-  if ((first || S.startPos === "random" || S.mode === "called") && !await briefing(drill, start, alive)) return null;
+  if (first || S.startPos === "random" || S.mode === "called") {
+    const b = await briefing(drill, start, alive);
+    if (b === "hold") return "hold";
+    if (!b) return null;
+  }
   const ready = await readyCheck(alive);
   if (ready !== "ok") return ready;
 
@@ -1710,8 +1718,9 @@ async function briefing(drill, start, alive) {
   const from = start !== "holster" || S.startPos === "random" ? STARTS[start].from : "";
   const brief = [from, drill ? cap(drill.call) : ""].filter(Boolean).join(" ");
   if (brief && S.confirm) {
-    await confirmBriefing(brief, alive);
+    const answer = await confirmBriefing(brief, alive);
     if (!alive()) return false;
+    if (answer === "hold") return "hold";
   }
   setStatus(command, brief || "Get into your start position.");
   await speak(brief && !S.confirm ? `${brief} ${command}.` : command);
@@ -1724,19 +1733,22 @@ async function briefing(drill, start, alive) {
 // would hear its own "continue". Without voice recognition it continues by itself after a few seconds.
 async function confirmBriefing(brief, alive) {
   const voiceOn = canListen();
-  let go = false, again = true, skipping = false, autoAt = Infinity, stop = () => {};
+  let go = false, hold = false, again = true, skipping = false, autoAt = Infinity, stop = () => {};
   confirmGo = () => { go = true; };
   renderButtons();
-  setStatus(brief, voiceOn ? "Say “continue” or tap Continue. “Repeat” reads it again, “next” gives another." : "Tap Continue, or wait: it continues by itself.");
-  while (!go && alive()) {
+  const back = canRepeat() && lastShot !== currentCourse;   // a course was shot before this one
+  setStatus(brief, voiceOn ? `Say “continue”. “Repeat” reads it again, “next” gives another${back ? ", “restart” the last one" : ""}, “stop” pauses.` : "Tap Continue, or wait: it continues by itself.");
+  while (!go && !hold && alive()) {
     if (again) {
       again = false; stop();
       await speak(voiceOn ? `${brief} Say continue to proceed.` : brief);
       if (go || !alive()) break;
       if (voiceOn) stop = listen(t => {
         if (VOICE.go.test(t)) go = true;
+        else if (VOICE.hold.test(t)) hold = true;
+        else if (/\bre ?start\b/.test(t) && back && !skipping) { skipping = true; setTimeout(() => { if (alive()) restart(lastShot); }); }
         else if (VOICE.repeat.test(t)) again = true;
-        else if (VOICE.next.test(t) && !skipping) { skipping = true; setTimeout(() => { if (alive()) restart(false); }); }
+        else if (VOICE.next.test(t) && !skipping) { skipping = true; setTimeout(() => { if (alive()) restart(null); }); }
       });
       else autoAt = Date.now() + 4000;
     }
@@ -1744,9 +1756,11 @@ async function confirmBriefing(brief, alive) {
     await sleep(50);
   }
   stop();
-  if (!alive()) return;   // stopped or restarted: the buttons belong to whoever runs now
+  if (!alive()) return null;   // stopped or restarted: the buttons belong to whoever runs now
   confirmGo = null;
   renderButtons();
+  if (hold) { await speak("Set paused. Say restart to continue."); return "hold"; }
+  return "go";
 }
 
 async function readyCheck(alive) {
@@ -1961,6 +1975,7 @@ async function finishString(s, set, alive) {
   // counted now: a restart during the results below moves on instead of shooting the rep again
   set.results.push({ ...result, gaps: m.gaps });
   set.rep++;
+  lastShot = { drill: s.drill, start: s.start, sig: set.sig };
 
   setStatus(v.headline, [m.note, v.parText].filter(Boolean).join(" "));
   const verdict = v.pass === true ? "pass" : v.pass === false || m.incomplete || m.wrongCount ? "fail" : null;
