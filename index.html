@@ -666,10 +666,10 @@ async function startSession() {
   const alive = () => my === run;
   state = "running";
   stopListening(); stopListening = () => {};
-  $("start").disabled = true; $("stop").disabled = false; $("test").disabled = true;
+  $("start").textContent = "Restart"; $("stop").disabled = false; $("test").disabled = true;
 
   const reps = drills ? Math.max(1, Math.round(S.reps) || 1) : 1;
-  const set = pending || { rep: 0, results: [], lastKey: null };
+  const set = activeSet = pending || { rep: 0, results: [], lastKey: null };
   pending = null;
   let first = true, keep = true;
   while (alive() && set.rep < reps) {
@@ -700,15 +700,31 @@ async function startSession() {
   if (alive()) goIdle(keep);
 }
 
+// Restart (button while running, or "next" during the briefing): drop the current rep and start
+// again at once; a set keeps its place, and Called mode draws a new pattern
+let activeSet = null;
+function abortRun() {
+  run++; string = null; closeMic(); hideScorepad(); confirmGo = null;
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+}
+function restart() {
+  if (state !== "running") return;
+  const set = activeSet;
+  abortRun();
+  pending = set;   // keeps the rep count and the last pattern, so Called mode draws a different one
+  state = "idle";
+  startSession();
+}
+
 // read the briefing and wait, however long, for "continue" (or the Continue button); "repeat" reads it
 // again. Listening starts only after the announcer has finished, or it would hear its own "continue".
 let confirmGo = null;
 async function confirmBriefing(brief, alive) {
   let go = false, again = true, stop = () => {};
   confirmGo = () => { go = true; };
-  $("start").textContent = "Continue"; $("start").disabled = false;
+  $("start").textContent = "Continue";
   const ask = canListen() ? "Say continue to proceed." : "Tap continue to proceed.";
-  setStatus(brief, canListen() ? "Say “continue” or tap Continue. “Repeat” reads it again." : "Tap Continue.");
+  setStatus(brief, canListen() ? "Say “continue” or tap Continue. “Repeat” reads it again, “next” gives another." : "Tap Continue.");
   while (!go && alive()) {
     if (again) {
       again = false; stop();
@@ -717,12 +733,14 @@ async function confirmBriefing(brief, alive) {
       stop = listen(t => {
         if (/\b(continue|proceed|go ahead|carry on)\b/.test(t)) go = true;
         else if (/\b(repeat|again)\b/.test(t)) again = true;
+        else if (/\b(next|skip)\b/.test(t)) setTimeout(restart);
       });
     }
     await sleep(50);
   }
-  stop(); confirmGo = null;
-  $("start").textContent = "Start"; $("start").disabled = true;
+  stop();
+  if (!alive()) return;   // stopped or restarted: the buttons belong to whoever is running now
+  confirmGo = null; $("start").textContent = "Restart";
 }
 
 async function repPause(alive) {
@@ -1123,10 +1141,13 @@ $("enable").addEventListener("click", async () => {
   keepAwake();
   goIdle();
 });
-$("start").addEventListener("click", () => { if (state === "idle") startSession(); else if (confirmGo) confirmGo(); });
+$("start").addEventListener("click", () => {
+  if (state === "idle") startSession();
+  else if (confirmGo) confirmGo();
+  else restart();
+});
 $("stop").addEventListener("click", () => {
-  run++; string = null; pending = null; closeMic(); hideScorepad();
-  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  abortRun(); pending = null;
   setStatus("Stopped"); goIdle();
 });
 $("test").addEventListener("click", toggleTest);
