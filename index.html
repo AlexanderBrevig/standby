@@ -140,6 +140,11 @@
       <tr><td>stop</td><td>Between reps: pause the set</td></tr>
       <tr><td>alpha … mike</td><td>Score: one word per shot, “all alpha”, or counts (“three alpha one charlie”)</td></tr>
       <tr><td>correction</td><td>After the score readback: score again</td></tr>
+      <tr><td>setup …</td><td>While idle: change the drill, e.g. “setup draw drill from table, five reps, par adaptive”, “setup called, my targets five paper three steel”. Then “confirm” or “cancel”. Add “and go” to start at once.</td></tr>
+      <tr><td>setup?</td><td>Read back the current setup (also “what’s set”)</td></tr>
+      <tr><td>setup undo</td><td>Undo the last setup change</td></tr>
+      <tr><td>setup save as …</td><td>Save the setup under a name; “setup &lt;name&gt;” loads it</td></tr>
+      <tr><td>setup help</td><td>What setup understands</td></tr>
     </table>
   </details>
 
@@ -191,6 +196,8 @@
       <summary>Range commands &amp; voice</summary>
       <label>Voice commands <input type="checkbox" id="voice">
         <small id="voiceNote">Listen for “restart”, “continue”, “not ready”, scores …</small></label>
+        <label>Hands-free setup <input type="checkbox" id="handsFree">
+          <small>Change the drill by voice while idle: “setup bill drill from table, five reps”. It reads back what it understood; say “confirm” or “cancel”.</small></label>
       <label>Wait for “continue” after the briefing <input type="checkbox" id="confirm">
         <small>“From low ready. Paper, steel. Say continue to proceed.” Without voice recognition the briefing continues by itself after a few seconds.</small></label>
       <label>Closing commands (unload &amp; show clear …) <input type="checkbox" id="closing">
@@ -255,7 +262,7 @@ const POOL = ["P S", "P S P", "S P S P", "2P S", "P 2S P", "3S P", "4P", "2P S 2
 const DEFAULTS = {
   threshold: -18, refractory: 0.08, prepTime: 3, readyWindow: 3,
   delayMin: 1, delayMax: 4, par: 2, silence: 5, maxWait: 10,
-  early: true, voice: true, confirm: true, closing: true, speakResults: true,
+  early: true, voice: true, handsFree: true, confirm: true, closing: true, speakResults: true,
   mode: "course", startPos: "holster", pattern: "P S", pool: POOL,
   calledFrom: "pool", targets: "5P 3S", courseMin: 3, courseMax: 6, reloadChance: 20,
   reps: 1, repInterval: 5, parMode: "off", parStep: 0.05, score: false, powerFactor: "minor",
@@ -672,6 +679,254 @@ function drillLine(drill, rep, reps, start) {
   return parts.join(" · ");
 }
 
+// ---------- hands-free setup: parsing ----------
+// "Setup bill drill from table, five reps, par adaptive" → settings changes. Phrases are found in any
+// order; only what's said changes; words that aren't understood are reported, never guessed.
+const SETUP_TRIGGER = /^\s*(setup|set up|set-up)\b/i;
+const SETUP_KEYS = ["mode", "pattern", "calledFrom", "targets", "courseMin", "courseMax", "reloadChance",
+  "startPos", "reps", "repInterval", "parMode", "par", "parStep", "score", "powerFactor"];   // what a named setup stores
+const SETUP_NUMBERS = { zero: 0, one: 1, won: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, twenty: 20, thirty: 30, forty: 40, fifty: 50 };
+// as speech recognition writes them; only where a number is expected
+const SETUP_HOMOPHONES = { to: 2, too: 2, for: 4, free: 3 };
+const SETUP_PRESETS = [   // longest first; the preset names as spoken (and as they get misheard)
+  ["el presidente", "3P R 3P"], ["el president", "3P R 3P"], ["presidente", "3P R 3P"],
+  ["bill drill", "P6"], ["one per paper", "3P1"], ["reload drill", "P R P"], ["paper steel", "P S"],
+  ["steel five", "5S"], ["blake drill", "3P"], ["black drill", "3P"], ["draw drill", "P1"],
+  ["doubles", "P"], ["double", "P"], ["blake", "3P"], ["bill", "P6"], ["draw", "P1"],
+];
+const SETUP_FILLER = new Set(["the", "a", "an", "and", "with", "please", "mode", "of", "then", "now", "um", "uh", "okay", "ok", "in", "at", "use", "do", "to", "drill"]);
+
+function setupWords(text) {
+  return text.toLowerCase().replace(/[-–]/g, " ").replace(/[^a-z0-9. ]/g, " ").replace(/\.(?!\d)/g, " ").split(/\s+/).filter(Boolean);
+}
+// a number at w[i] ("five", "2.5", "two point five"); homophones only when asked for
+function setupNumber(w, i, homophones = false) {
+  const one = x => /^\d+(\.\d+)?$/.test(x || "") ? parseFloat(x) : SETUP_NUMBERS[x] ?? (homophones ? SETUP_HOMOPHONES[x] : undefined);
+  const v = one(w[i]);
+  if (v === undefined) return null;
+  if (w[i + 1] === "point" && SETUP_NUMBERS[w[i + 2]] !== undefined && SETUP_NUMBERS[w[i + 2]] < 10) {
+    const d = SETUP_NUMBERS[w[i + 2]], d2 = SETUP_NUMBERS[w[i + 3]];
+    return d2 !== undefined && d2 < 10 ? { value: v + d / 10 + d2 / 100, used: 4 } : { value: v + d / 10, used: 3 };
+  }
+  return { value: v, used: 1 };
+}
+const isTargetWord = x => /^(papers?|steels?|plates?|poppers?)$/.test(x || "");
+const targetKind = x => /^papers?$/.test(x) ? "P" : "S";
+
+// → { changes: {key: value}, heard: [phrases], unknown: [words], conflicts: [text], action, name, go }
+function parseSetup(text, savedNames = []) {
+  const w = setupWords(text.replace(SETUP_TRIGGER, ""));
+  const r = { changes: {}, heard: [], unknown: [], conflicts: [], action: null, name: null, go: false };
+  const said = {};   // key → phrase that set it, for conflict messages
+  const set = (key, value, phrase) => {
+    if (key in r.changes && r.changes[key] !== value) r.conflicts.push(`${said[key]} and ${phrase}`);
+    else { r.changes[key] = value; said[key] = phrase; }
+  };
+  const is = (i, ...words) => words.every((x, k) => w[i + k] === x);
+  const phrase = (i, n) => w.slice(i, i + n).join(" ");
+  const matchers = [
+    // actions
+    i => w[i] === "go" && i === w.length - 1 ? (r.go = true, 1) : 0,
+    i => is(i, "help") ? (r.action = "help", 1) : 0,
+    i => is(i, "undo") ? (r.action = "undo", 1) : 0,
+    i => {
+      if (!is(i, "save")) return 0;
+      const n = is(i + 1, "as") ? 2 : 1;
+      r.action = "save"; r.name = phrase(i + n, w.length).trim();
+      return w.length - i;
+    },
+    // "my targets five paper three steel": generated courses
+    i => {
+      const start = is(i, "my", "targets") ? 2 : is(i, "targets") ? 1 : 0;
+      if (!start) return 0;
+      let j = i + start;
+      const inv = { P: 0, S: 0 };
+      for (;;) {
+        const num = setupNumber(w, j, true);
+        if (num && isTargetWord(w[j + num.used])) { inv[targetKind(w[j + num.used])] += num.value; j += num.used + 1; }
+        else if (isTargetWord(w[j])) { inv[targetKind(w[j])] += 1; j++; }
+        else if (w[j] === "and") j++;
+        else break;
+      }
+      if (!inv.P && !inv.S) return 0;
+      set("mode", "called", "my targets"); set("calledFrom", "targets", "my targets");
+      set("targets", [inv.P && inv.P + "P", inv.S && inv.S + "S"].filter(Boolean).join(" "), phrase(i, j - i));
+      r.heard.push(phrase(i, j - i));
+      return j - i;
+    },
+    // "pattern two paper reload steel", "pattern paper six shots"
+    i => {
+      if (!is(i, "pattern")) return 0;
+      let j = i + 1;
+      const toks = [];
+      for (;;) {
+        let num = setupNumber(w, j, true);
+        if (num && isTargetWord(w[j + num.used])) { toks.push((num.value > 1 ? num.value : "") + targetKind(w[j + num.used])); j += num.used + 1; }
+        else if (isTargetWord(w[j])) { toks.push(targetKind(w[j])); j++; }
+        else if (/^reloads?$/.test(w[j] || "")) { toks.push("R"); j++; }
+        else if (/^(move|movement)$/.test(w[j] || "")) { toks.push("M"); j++; }
+        else if (toks.length && /P$/.test(toks[toks.length - 1]) && (num = setupNumber(w, j, true)) && /^shots?$/.test(w[j + num.used] || "")) {
+          toks[toks.length - 1] += num.value; j += num.used + 1;
+          if (w[j] === "each") j++;
+        }
+        else if (w[j] === "and" && toks.length) j++;
+        else break;
+      }
+      if (!toks.length) { r.unknown.push("pattern"); return 1; }
+      try { set("pattern", parsePattern(toks.join(" ")).key, phrase(i, j - i)); set("mode", "drill", phrase(i, j - i)); r.heard.push(phrase(i, j - i)); }
+      catch (e) { r.conflicts.push(`pattern: ${e.message}`); }
+      return j - i;
+    },
+    // "three to six targets": course length for generated courses
+    i => {
+      const a = setupNumber(w, i);
+      if (!a || !/^(to|through|till)$/.test(w[i + a.used] || "")) return 0;
+      const b = setupNumber(w, i + a.used + 1, true);
+      if (!b || !/^targets?$/.test(w[i + a.used + 1 + b.used] || "")) return 0;
+      const n = a.used + b.used + 2;
+      set("courseMin", Math.round(a.value), phrase(i, n)); set("courseMax", Math.round(b.value), phrase(i, n)); r.heard.push(phrase(i, n));
+      return n;
+    },
+    // reload chance: "reloads often / sometimes / rarely / never", "no reloads", "reload chance thirty"
+    i => {
+      const amounts = { often: 40, sometimes: 20, rarely: 10, never: 0 };
+      if (/^reloads?$/.test(w[i]) && w[i + 1] in amounts) { set("reloadChance", amounts[w[i + 1]], phrase(i, 2)); r.heard.push(phrase(i, 2)); return 2; }
+      if (is(i, "no", "reloads")) { set("reloadChance", 0, "no reloads"); r.heard.push("no reloads"); return 2; }
+      if (/^reloads?$/.test(w[i]) && w[i + 1] === "chance") {
+        const num = setupNumber(w, i + 2);
+        if (!num) return 0;
+        const n = 2 + num.used + (w[i + 2 + num.used] === "percent" ? 1 : 0);
+        set("reloadChance", Math.min(100, Math.round(num.value)), phrase(i, n)); r.heard.push(phrase(i, n));
+        return n;
+      }
+      return 0;
+    },
+    // presets (Drill mode)
+    i => {
+      for (const [name, pattern] of SETUP_PRESETS) {
+        const n = name.split(" ").length;
+        if (phrase(i, n) !== name) continue;
+        const used = n + (w[i + n] === "drill" ? 1 : 0);
+        set("pattern", pattern, name); set("mode", "drill", name); r.heard.push(name);
+        return used;
+      }
+      return 0;
+    },
+    // modes
+    i => {
+      if (is(i, "from", "the", "list") || is(i, "from", "list")) { const n = is(i, "from", "the") ? 3 : 2; set("calledFrom", "pool", "from the list"); set("mode", "called", "from the list"); r.heard.push("from the list"); return n; }
+      if (w[i] === "course") { set("mode", "course", "course"); r.heard.push("course"); return 1; }
+      if (w[i] === "called" || w[i] === "call") { set("mode", "called", "called"); r.heard.push("called"); return 1; }
+      if (w[i] === "drill" && !Object.keys(r.changes).includes("pattern")) { set("mode", "drill", "drill"); r.heard.push("drill"); return 1; }
+      return 0;
+    },
+    // start position: "from table", "low ready", "random start"
+    i => {
+      let j = i;
+      if (w[j] === "start" && w[j + 1] !== "position") j++;   // "start holster"
+      if (w[j] === "from") { j++; if (w[j] === "the" || w[j] === "a") j++; }
+      const starts = [["low ready", "ready"], ["holster", "holster"], ["table", "table"], ["random", "random"], ["ready", "ready"]];
+      for (const [name, value] of starts) {
+        const n = name.split(" ").length;
+        if (phrase(j, n) !== name) continue;
+        if (name === "ready" && j === i) return 0;   // a bare "ready" is too easy to say by accident
+        const used = j - i + n + (w[j + n] === "start" || w[j + n] === "position" ? 1 : 0);
+        set("startPos", value, phrase(i, used)); r.heard.push(phrase(i, used));
+        return used;
+      }
+      return 0;
+    },
+    i => is(i, "start", "position") ? 2 : 0,   // "start position table": the position follows
+    // reps: "five reps", "reps five", "single"
+    i => {
+      if (is(i, "single")) { set("reps", 1, "single"); r.heard.push("single"); return 1 + (/^reps?$/.test(w[i + 1] || "") ? 1 : 0); }
+      const a = setupNumber(w, i, true);
+      if (a && /^(reps?|repetitions|times)$/.test(w[i + a.used] || "")) { set("reps", Math.max(1, Math.round(a.value)), phrase(i, a.used + 1)); r.heard.push(phrase(i, a.used + 1)); return a.used + 1; }
+      if (/^reps?$/.test(w[i])) { const b = setupNumber(w, i + 1, true); if (b) { set("reps", Math.max(1, Math.round(b.value)), phrase(i, b.used + 1)); r.heard.push(phrase(i, b.used + 1)); return b.used + 1; } }
+      return 0;
+    },
+    // par: "par off", "no par", "par adaptive", "adaptive par", "par two point five", "fixed par"
+    i => {
+      const par = x => /^(par|bar|parr)$/.test(x || "");
+      if (is(i, "no") && par(w[i + 1])) { set("parMode", "off", "no par"); r.heard.push("no par"); return 2; }
+      if ((w[i] === "adaptive" || w[i] === "fixed") ) {
+        const n = par(w[i + 1]) ? 2 : 1;
+        if (w[i] === "fixed" && n === 2) { const num = setupNumber(w, i + 2); if (num) { set("parMode", "fixed", phrase(i, 2 + num.used)); set("par", num.value, phrase(i, 2 + num.used)); r.heard.push(phrase(i, 2 + num.used)); return 2 + num.used; } }
+        set("parMode", w[i], phrase(i, n)); r.heard.push(phrase(i, n)); return n;
+      }
+      if (!par(w[i])) return 0;
+      if (/^(off|none)$/.test(w[i + 1] || "")) { set("parMode", "off", "par off"); r.heard.push("par off"); return 2; }
+      if (w[i + 1] === "adaptive" || w[i + 1] === "fixed") { set("parMode", w[i + 1], phrase(i, 2)); r.heard.push(phrase(i, 2)); return 2; }
+      const num = setupNumber(w, i + 1);
+      if (num && num.value >= MIN_PAR) { const n = 1 + num.used + (/^seconds?$/.test(w[i + 1 + num.used] || "") ? 1 : 0); set("parMode", "fixed", phrase(i, n)); set("par", num.value, phrase(i, n)); r.heard.push(phrase(i, n)); return n; }
+      return 0;
+    },
+    // scoring and power factor
+    i => {
+      const score = x => /^(score|scoring)$/.test(x || "");
+      if ((is(i, "no") || is(i, "without")) && score(w[i + 1])) { set("score", false, phrase(i, 2)); r.heard.push(phrase(i, 2)); return 2; }
+      if (score(w[i])) {
+        const off = w[i + 1] === "off", on = w[i + 1] === "on";
+        set("score", !off, phrase(i, off || on ? 2 : 1)); r.heard.push(phrase(i, off || on ? 2 : 1));
+        return off || on ? 2 : 1;
+      }
+      if (w[i] === "major" || w[i] === "minor") {
+        const n = is(i + 1, "power", "factor") ? 3 : 1;
+        set("powerFactor", w[i], phrase(i, n)); r.heard.push(phrase(i, n)); return n;
+      }
+      return 0;
+    },
+  ];
+  for (let i = 0; i < w.length;) {
+    let used = 0;
+    for (const m of matchers) if ((used = m(i))) break;
+    if (used) { i += used; continue; }
+    if (!SETUP_FILLER.has(w[i])) r.unknown.push(w[i]);
+    i++;
+  }
+  // nothing but a saved name: load it. Nothing at all (or "what's set"): read the setup back.
+  const rest = r.unknown.join(" ");
+  if (!Object.keys(r.changes).length && !r.action && rest && savedNames.includes(rest)) { r.action = "load"; r.name = rest; r.unknown = []; }
+  if (!Object.keys(r.changes).length && !r.action && (!w.length || /^(what s set|what is set|status)$/.test(w.join(" ").replace(/'/g, " ")))) { r.action = "query"; r.unknown = []; }
+  return r;
+}
+// how good an interpretation is, to choose between recognition alternatives
+const setupScore = r => Object.keys(r.changes).length + (r.action ? 1 : 0) - r.unknown.length - 2 * r.conflicts.length;
+
+// a setup in words: all of it, or only the keys in `only`
+function describeSetup(cfg, only = null) {
+  const has = (...keys) => !only || keys.some(k => only.includes(k));
+  const out = [];
+  if (has("mode", "pattern", "calledFrom", "targets", "courseMin", "courseMax", "reloadChance")) {
+    if (cfg.mode === "course") out.push("Course");
+    else if (cfg.mode === "drill") {
+      let key = null; try { key = parsePattern(cfg.pattern).key; } catch {}
+      const preset = PRESETS.find(([, p]) => p === key);
+      out.push(preset ? `Drill, ${preset[0]}` : `Drill, ${key ? parsePattern(key).call.replace(/\.$/, "") : cfg.pattern}`);
+    } else if (cfg.calledFrom === "targets") {
+      let inv = null; try { inv = parseTargets(cfg.targets); } catch {}
+      const lo = Math.round(cfg.courseMin), hi = Math.round(cfg.courseMax);
+      out.push(inv ? `Called, generated from ${[inv.P && `${numWord(inv.P)} paper`, inv.S && `${numWord(inv.S)} steel`].filter(Boolean).join(" and ")}, ${lo === hi ? numWord(lo) : `${numWord(lo)} to ${numWord(hi)}`} targets, reloads ${cfg.reloadChance} percent`
+        : `Called, from your targets`);
+    } else out.push("Called, from the list");
+  }
+  if (has("startPos")) out.push(cfg.startPos === "random" ? "Random start" : STARTS[cfg.startPos].from.replace(/\.$/, ""));
+  if (has("reps") && cfg.mode !== "course") out.push(cfg.reps > 1 ? `${numWord(cfg.reps)} reps` : "Single rep");
+  if (has("parMode", "par")) out.push(cfg.parMode === "off" ? "No par" : cfg.parMode === "fixed" ? `Par ${fmt(cfg.par)}` : "Adaptive par");
+  if (has("score", "powerFactor")) out.push(cfg.score ? `Score on, ${cfg.powerFactor}` : "No score");
+  return out.map(cap).join(". ") + ".";
+}
+// the mnemonic for a setup preview on the big display
+function setupMarks(cfg) {
+  try {
+    const start = cfg.startPos === "random" ? "?" : STARTS[cfg.startPos].mark;
+    const reps = cfg.mode !== "course" && cfg.reps > 1 ? ` ×${cfg.reps}` : "";
+    if (cfg.mode === "drill") return `${start} ${parsePattern(cfg.pattern).marks}${reps}`;
+    return `${start} ${cfg.mode === "called" ? "CALLED" : "COURSE"}${reps}`;
+  } catch { return cfg.mode.toUpperCase(); }
+}
+
 // ---------- display ----------
 let statusText = "Idle";
 function setStatus(text, hint = "") { statusText = text; $("status").textContent = text; $("hint").textContent = hint; }
@@ -848,7 +1103,7 @@ const VOICE = {
   redo: /\b(correction|again|redo|wrong)\b/,
 };
 // our own prompts, if the mic picks them up
-const SELF = /\bto (proceed|continue)\b|\bwhen ready\b|\bsay (restart|continue)\b/;
+const SELF = /\bto (proceed|continue|begin)\b|\bwhen ready\b|\bsay (restart|continue|confirm)\b|\bconfirm or cancel\b/;
 // onText gets every alternative of every (interim) result; onFinal gets the alternatives of a final result
 function listen(onText, onFinal) {
   if (!canListen()) return () => {};
@@ -889,7 +1144,7 @@ async function listenFor(re, ms, alive) {
 }
 
 // ---------- state ----------
-let state = "locked";   // locked | idle | test | running
+let state = "locked";   // locked | idle | test | running | setup (hands-free setup readback)
 let run = 0;            // bumps on stop/restart: every running flow checks alive() and bows out
 let string = null;      // the string being timed
 let pending = null;     // a set paused by voice; the next start resumes it
@@ -905,23 +1160,28 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 
 function renderButtons() {
   const start = $("start");
-  start.textContent = state === "running" ? (confirmGo ? "Continue" : "Restart rep")
+  start.textContent = state === "setup" ? "Confirm" : state === "running" ? (confirmGo ? "Continue" : "Restart rep")
     : pending ? `Resume set (${pending.rep + 1}/${pending.reps})` : "Start";
-  start.disabled = state === "locked" || state === "test" || (state === "idle" && !!plan.error);
-  $("stop").disabled = state !== "running";
-  $("test").disabled = state === "running";
+  start.disabled = state === "locked" || state === "test" || (state === "idle" && !!plan.error) || (state === "setup" && !confirmGo);
+  $("stop").disabled = state !== "running" && state !== "setup";
+  $("stop").textContent = state === "setup" ? "Cancel" : "Stop";
+  $("test").disabled = state === "running" || state === "setup";
   $("test").textContent = state === "test" ? "End test" : "Mic test";
-  document.body.classList.toggle("running", state === "running");
+  document.body.classList.toggle("running", state === "running" || state === "setup");
 }
 function idleHint() {
   if (plan.error) return "Fix the drill settings below.";
   if (!SR) return "Tap Start. (No voice recognition in this browser.)";
   const say = S.voice ? "Say “restart” or tap Start" : "Tap Start";
-  return pending ? `Set paused. ${say} to continue.` : say + ".";
+  if (pending) return `Set paused. ${say} to continue.`;
+  return S.voice && S.handsFree ? `${say}. Say “setup …” to change the drill.` : say + ".";
 }
+// while idle: "restart" starts; "setup …" (whole phrases only, so final results) changes the drill
+function idleText(t) { if (state === "idle" && !isSetupSpeech(t) && VOICE.start.test(t)) startSession(); }
+function idleFinal(alts) { const setup = alts.filter(isSetupSpeech); if (state === "idle" && setup.length) setupFlow(setup); }
 function idleListen() {
   stopListening();
-  stopListening = listen(t => { if (state === "idle" && VOICE.start.test(t)) startSession(); });
+  stopListening = listen(idleText, idleFinal);
 }
 // keep: leave the last result (or error) on screen instead of showing "Idle"
 function goIdle(keep = false) {
@@ -938,6 +1198,98 @@ function abortRun() {
   string = null; confirmGo = null;
   closeMic(); hideScorepad();
   if ("speechSynthesis" in window) speechSynthesis.cancel();
+}
+
+// ---------- hands-free setup: flow ----------
+// Idle only. "Setup …" is parsed, read back and shown, and applied only after "confirm" (or the
+// Confirm button); "cancel", Stop or silence leaves everything as it was. "… and go" starts too.
+const SETUP_ANSWER = { yes: /\b(confirm|yes|yeah|correct|apply|do it|go)\b/, no: /\b(cancel|no|nope|stop|wrong)\b/ };
+let setupUndo = null;   // the values before the last confirmed setup
+const savedSetups = () => load("standby.setups", {});
+const isSetupSpeech = t => S.handsFree && canListen() && (SETUP_TRIGGER.test(t.trim()) || /\bwhat'?s set\b|\bwhat is set\b/.test(t));
+
+function applySettings(changes) {
+  for (const [key, value] of Object.entries(changes)) {
+    S[key] = value;
+    const el = $(key);
+    if (el.type === "checkbox") el.checked = value; else el.value = value;
+  }
+  save("standby.settings", S);
+  pending = null;
+  syncPreset();
+  refreshDrillUi();
+}
+function setupAnswer(alive, ms = 8000) {
+  return new Promise(resolve => {
+    let done = false, stop = () => {};
+    const finish = v => { if (done) return; done = true; stop(); confirmGo = null; resolve(v); };
+    confirmGo = () => finish("yes");
+    renderButtons();
+    stop = listen(t => { if (SETUP_ANSWER.no.test(t)) finish("no"); else if (SETUP_ANSWER.yes.test(t)) finish(/\bgo\b/.test(t) ? "go" : "yes"); });
+    const until = Date.now() + ms;
+    (async () => { while (!done) { await sleep(50); if (!alive() || Date.now() > until) finish("no"); } })();
+  });
+}
+async function setupFlow(alts) {
+  if (state !== "idle") return;
+  const names = Object.keys(savedSetups());
+  const r = alts.map(a => parseSetup(a, names)).sort((a, b) => setupScore(b) - setupScore(a))[0];
+  const my = ++run;
+  const alive = () => my === run;
+  state = "setup";
+  stopListening(); stopListening = () => {};
+  renderButtons();
+  const say = async (status, text, hint = "") => { setStatus(status, hint || text); await speak(text); };
+  try {
+    if (r.action === "query") { setMnemonic(setupMarks(S)); await say("Setup", describeSetup(S)); return; }
+    if (r.action === "help") {
+      await say("Setup help", "Say setup, then a mode or a drill, a start position, reps, par or score. For example: setup bill drill from table, five reps. Add and go to start.");
+      return;
+    }
+    if (r.action === "undo") {
+      if (!setupUndo) { await say("Setup", "Nothing to undo."); return; }
+      applySettings(setupUndo); setupUndo = null;
+      setMnemonic(setupMarks(S));
+      await say("Setup undone", `Undone. ${describeSetup(S)}`);
+      return;
+    }
+    let changes = r.changes, intro = "";
+    if (r.action === "save") {
+      if (!r.name) { await say("Setup", "Say setup, save as, and a name."); return; }
+      intro = `Save this setup as ${r.name}? `;
+      changes = {};
+    }
+    if (r.action === "load") { changes = savedSetups()[r.name]; intro = `Load ${r.name}. `; }
+    if (r.conflicts.length) { await say("Setup not changed", `Heard both ${r.conflicts[0]}. Setup not changed.`); return; }
+    if (!Object.keys(changes).length && r.action !== "save") {
+      await say("Setup", r.unknown.length ? `Didn't understand ${r.unknown.join(" ")}. Say setup help.` : "Setup not changed.");
+      return;
+    }
+    const next = { ...S, ...changes };
+    try { if (next.mode === "drill") parsePattern(next.pattern); if (next.mode === "called" && next.calledFrom === "targets") parseTargets(next.targets); }
+    catch (e) { await say("Setup not changed", `${e.message} Setup not changed.`); return; }
+    setMnemonic(setupMarks(next));
+    const what = r.action === "save" ? describeSetup(S) : describeSetup(next, Object.keys(changes));
+    const unknown = r.unknown.length ? ` Didn't understand ${r.unknown.join(" ")}.` : "";
+    await say("Setup", `${intro}${what}${unknown} Say confirm or cancel.`, `${intro}${what}${unknown}`);
+    if (!alive()) return;
+    const answer = await setupAnswer(alive);
+    if (!alive()) return;
+    if (answer === "no") { await say("Setup cancelled", "Cancelled."); return; }
+    if (r.action === "save") {
+      const setups = savedSetups();
+      setups[r.name] = Object.fromEntries(SETUP_KEYS.map(k => [k, S[k]]));
+      save("standby.setups", setups);
+      await say("Setup saved", `Saved as ${r.name}.`);
+      return;
+    }
+    setupUndo = Object.fromEntries(Object.keys(changes).map(k => [k, S[k]]));
+    applySettings(changes);
+    if (r.go || answer === "go") { if (alive()) { goIdle(true); startSession(); } return; }
+    await say("Setup done", "Done. Say restart to begin.");
+  } finally {
+    if (alive() && state === "setup") goIdle(true);
+  }
 }
 
 // ---------- sets ----------
@@ -1482,11 +1834,13 @@ $("enable").addEventListener("click", async () => {
   goIdle();
 });
 $("start").addEventListener("click", () => {
-  if (state === "idle") startSession();
+  if (state === "setup") { if (confirmGo) confirmGo(); }
+  else if (state === "idle") startSession();
   else if (confirmGo) confirmGo();
   else restart();
 });
 $("stop").addEventListener("click", () => {
+  if (state === "setup") { abortRun(); setStatus("Setup cancelled", ""); goIdle(true); $("hint").textContent = idleHint(); return; }
   abortRun(); pending = null; activeSet = null;
   setStatus("Stopped", "");
   goIdle(true);
@@ -1568,6 +1922,31 @@ function selfTest() {
   st = stepPar(st, 3.0, true, 0.05).st; eq("one pass keeps par", st.par, 3.1);
   st = stepPar(st, 3.0, true, 0.05).st; eq("two passes tighten", st.par, 3.05);
   st = stepPar(st, 3.2, false, 0.05).st; eq("a fail loosens", st.par, 3.1);
+  // hands-free setup
+  const P = (text, names) => { const r = parseSetup(text, names); return { ...r.changes, ...(r.unknown.length ? { unknown: r.unknown } : {}), ...(r.conflicts.length ? { conflicts: r.conflicts.length } : {}), ...(r.action ? { action: r.action } : {}), ...(r.name ? { name: r.name } : {}), ...(r.go ? { go: true } : {}) }; };
+  eq("setup bill drill", P("setup bill drill from table, five reps, par adaptive"), { pattern: "P6", mode: "drill", startPos: "table", reps: 5, parMode: "adaptive" });
+  eq("set up draw and go", P("Set up draw drill from the table and go"), { pattern: "P1", mode: "drill", startPos: "table", go: true });
+  eq("setup targets", P("setup called, my targets five paper three steel, three to six targets, reloads rarely"), { mode: "called", calledFrom: "targets", targets: "5P 3S", courseMin: 3, courseMax: 6, reloadChance: 10 });
+  eq("setup course", P("setup course, start holster, par off"), { mode: "course", startPos: "holster", parMode: "off" });
+  eq("setup start position", P("setup start position low ready"), { startPos: "ready" });
+  eq("setup pattern", P("setup pattern two paper reload steel"), { pattern: "2P R S", mode: "drill" });
+  eq("setup pattern shots", P("setup pattern paper six shots"), { pattern: "P6", mode: "drill" });
+  eq("setup par number", P("setup par two point five"), { parMode: "fixed", par: 2.5 });
+  eq("setup par digits", P("setup par 2.5 seconds"), { parMode: "fixed", par: 2.5 });
+  eq("setup el presidente", P("setup El Presidente from low ready, ten reps"), { pattern: "3P R 3P", mode: "drill", startPos: "ready", reps: 10 });
+  eq("setup score", P("setup score on, major"), { score: true, powerFactor: "major" });
+  eq("setup no score single", P("setup no score, single"), { score: false, reps: 1 });
+  eq("setup list", P("setup called from the list, random start"), { mode: "called", calledFrom: "pool", startPos: "random" });
+  eq("setup conflict", P("setup course bill drill"), { mode: "course", pattern: "P6", conflicts: 1 });
+  eq("setup unknown", P("setup flibber"), { unknown: ["flibber"] });
+  eq("setup query", P("setup"), { action: "query" });
+  eq("what's set", P("what's set"), { action: "query" });
+  eq("setup save", P("setup save as warm up"), { action: "save", name: "warm up" });
+  eq("setup load", P("setup warm up", ["warm up"]), { action: "load", name: "warm up" });
+  eq("setup describe", describeSetup({ ...DEFAULTS, mode: "drill", pattern: "P6", startPos: "table", reps: 5, parMode: "adaptive" }),
+    "Drill, Bill drill. From table. Five reps. Adaptive par. No score.");
+  eq("setup marks", setupMarks({ ...DEFAULTS, mode: "drill", pattern: "P6", startPos: "table", reps: 5 }), "T P6 ×5");
+  eq("setup describe changes", describeSetup({ ...DEFAULTS, startPos: "ready", reps: 3 }, ["startPos"]), "From low ready.");
   const fails = out.filter(l => l.startsWith("FAIL")).length;
   out.unshift(`${fails ? fails + " FAILED" : "all passed"} (${out.length} checks)`);
   document.body.insertAdjacentHTML("beforeend", `<pre id="selftest" class="card">${escapeHtml(out.join("\n"))}</pre>`);

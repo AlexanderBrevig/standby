@@ -4,11 +4,7 @@ Feature ideas, roughly by priority. Sport framing only (IPSC / Steel Challenge);
 
 ## Next up
 
-- **Voice configuration.** Set up a drill without touching the phone, behind a trigger word so ordinary speech can't change settings:
-  - "Mode: course, start holster, par off"
-  - "Mode: draw drill from table" → Drill mode, Draw preset (`P1`), table start
-  - "Mode: called, my targets five paper three steel"
-  - The app reads back what it understood ("Drill, draw, from table. Say continue.") before applying it. Unknown words are ignored and reported, not guessed. Needs a small grammar: mode names, preset names, "from holster / low ready / table / random", "par off / fixed N / adaptive", "reps N", "score on / off".
+- **Voice configuration**: done (hands-free setup, see README). Later: chain named setups into a guided session (below).
 - **Guided session with a safety check-in and check-out.** "No live ammunition in the room. Magazine out, chamber empty, check twice. Say checked." Then blocks (cold benchmark rep, warm-up without par, 2–3 drill blocks), and a deliberate close: "Dry fire session complete. The gun is done for today." The app won't start again without a new check-in. Self-reported, but it builds the habit (kb-ipsc journal ch. 19, 27).
 - **Judge the process.** Pick 1–2 focus cues ("finger out before I move", "come up from below"). The briefing speaks them, and after each rep the app asks "Finger out? Yes or no." Optional shot calling: say the call before looking, then score, and log call accuracy. Per set, show a process score ("finger out 9/10, calls 7/10").
 - **Benchmarks, progress view, export/import.** A fixed suite (Draw `P1`, Doubles `P`, Bill `P6`, Blake `3P`, Reload `P1 R P1`, El Presidente). The first rep of the day is tagged *cold*, then best of 3–5. Tag runs by setup (dry / airsoft / live, distance, gun). Show this month vs last month (median, best), with no fixed "good" numbers. **Export/import JSON/CSV**, because the log lives only in localStorage.

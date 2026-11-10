@@ -164,6 +164,15 @@ A log entry adds: `mode, pattern, labels[], score words, points, hf, par, pass, 
 
 Table columns: Time · Pattern · Total · HF · Par. Tapping a row shows each shot with its gap label. Set summary (spoken, and shown on screen): reps, best/average total, best/average HF, average split, average transition, average reload, final par.
 
+## 8b. Hands-free setup
+
+Changing the drill without touching the phone. While idle, a transcript starting with **"setup"** (or "set up") goes to the setup parser, and **only** there. The idle listener used to start a string on any transcript containing "start", so "setup, start position table" would have started one. Setup acts on final results only, so a half-recognised sentence isn't applied.
+
+- **Parser (`parseSetup`, pure):** slot filling in any order, filler ignored. It recognises modes, presets by name (and common mishearings: "black drill" for Blake, "el president"), "pattern" plus spoken targets ("pattern two paper reload steel" → `2P R S`), "my targets five paper three steel", "three to six targets", "reloads often/sometimes/rarely/never", start positions ("from table", "low ready", "random start"), reps ("five reps", "single"), par ("par off", "par adaptive", "par two point five"), score on/off, major/minor. Numbers accept digits, "point" decimals and recognition homophones (to/too, for, free) where a number is expected. It returns changes, unknown words, conflicts (e.g. "course" and "bill drill"), an action (query, help, undo, save, load) and "go". Of the recognition alternatives, the one with the most understood phrases and fewest unknown words wins.
+- **Flow:** readback of what changes (status line plus a preview mnemonic such as `T P6 ×5`), then "Say confirm or cancel". "Confirm", "yes" or the Confirm button applies; "cancel", "no", the Cancel button or 8 s of silence leaves it. "… and go" (or "confirm and go") applies and starts. Conflicts, invalid patterns and nothing understood are reported and change nothing.
+- **Extras:** "setup?" or "what's set" reads back the whole setup; "setup undo" restores the values before the last confirmed change (one level); "setup save as <name>" stores the drill settings (`SETUP_KEYS`) under a name in `standby.setups`, and "setup <name>" loads it, with the same confirm.
+- Setting: **Hands-free setup**, on by default (needs voice recognition).
+
 ## 9. Settings changes
 
 Grouped in the Settings card:

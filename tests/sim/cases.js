@@ -93,6 +93,50 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   startSession(); await until(() => state === "idle", 60000);
   check("resumed to the end", SAID.some(t => t.startsWith("Set done. 3 reps")), SAID.slice(-1)[0]);
 
+  // 15. hands-free setup: confirm applies, cancel doesn't, undo restores
+  setup({ mode: "course", startPos: "holster", reps: 1, parMode: "off" }); SAID.length = 0;
+  REPLIES = [[/confirm or cancel/, "confirm"]];
+  setupFlow(["setup bill drill from table, five reps, par adaptive"]); await until(() => state === "idle");
+  check("setup applied", S.mode === "drill" && S.pattern === "P6" && S.startPos === "table" && S.reps === 5 && S.parMode === "adaptive" && $("pattern").value === "P6", JSON.stringify([S.mode, S.pattern, S.startPos, S.reps, S.parMode]));
+  check("setup readback", SAID.some(t => t.startsWith("Drill, Bill drill. From table. Five reps. Adaptive par. Say confirm or cancel.")), SAID.join(" | "));
+  REPLIES = [[/confirm or cancel/, "cancel"]];
+  setupFlow(["setup course"]); await until(() => state === "idle");
+  check("setup cancelled", S.mode === "drill", S.mode);
+  setupFlow(["setup undo"]); await until(() => state === "idle");
+  check("setup undo", S.mode === "course" && S.startPos === "holster" && S.reps === 1 && S.parMode === "off", JSON.stringify([S.mode, S.startPos, S.reps, S.parMode]));
+  // silence cancels
+  REPLIES = [];
+  setupFlow(["setup drill"]); await until(() => state === "idle", 20000);
+  check("setup silence cancels", S.mode === "course", S.mode);
+
+  // 16. "and go" applies and starts the string
+  localStorage.removeItem("standby.log"); rep = 0; PLAN = () => [1.0];
+  REPLIES = [[/confirm or cancel/, "yes"]];
+  setupFlow(["set up draw drill from the table and go"]);
+  await until(() => state === "running"); await until(() => state === "idle");
+  check("setup and go ran the drill", lastLog() && lastLog().pattern === "P1" && lastLog().start === "table", JSON.stringify(lastLog()));
+
+  // 17. save and load a named setup; buttons confirm and cancel
+  REPLIES = [[/confirm or cancel/, "confirm"]];
+  setupFlow(["setup save as warm up"]); await until(() => state === "idle");
+  check("setup saved", load("standby.setups", {})["warm up"] && load("standby.setups", {})["warm up"].pattern === "P1");
+  applySettings({ mode: "course", startPos: "holster" });
+  REPLIES = [];
+  setupFlow(["setup warm up"]); await until(() => $("start").textContent === "Confirm" && !$("start").disabled);
+  $("start").click(); await until(() => state === "idle");
+  check("setup loaded by name (Confirm button)", S.mode === "drill" && S.pattern === "P1" && S.startPos === "table", JSON.stringify([S.mode, S.pattern, S.startPos]));
+  setupFlow(["setup course"]); await until(() => $("stop").textContent === "Cancel" && !$("start").disabled);
+  $("stop").click(); await sleep(300);
+  check("setup Cancel button", S.mode === "drill" && state === "idle", S.mode + " " + state);
+
+  // 18. "setup start position …" never starts a string; "restart" does
+  let starts = 0; const origStart = startSession; startSession = () => { starts++; return false; };
+  idleText("setup start position table"); idleText("set up, start holster");
+  check("setup speech doesn't start", starts === 0, starts);
+  idleText("restart"); check("restart starts", starts === 1, starts);
+  S.handsFree = false; idleText("setup start position table"); check("hands-free off: \"start\" starts as before", starts === 2, starts); S.handsFree = true;
+  startSession = origStart;
+
   // 14. generated course + score over 12 shots prompt uses digits
   check("numWord 15", numWord(15) === "15");
   check("no errors", !LOG.some(l => l.startsWith("ERROR") || l.startsWith("REJECT")));
