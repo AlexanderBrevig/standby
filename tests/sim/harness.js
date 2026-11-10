@@ -44,4 +44,4 @@ async function runSet(name, opts, plan, replies = []) {
   LOG.push(`== ${name}${ok ? "" : " (TIMED OUT, state " + state + ")"}`);
 }
 function done() { document.body.insertAdjacentHTML("beforeend", `<pre id="out">${LOG.join("\n")}</pre>`); }
-document.getElementById("overlay").remove(); state = "idle"; localStorage.removeItem("standby.log"); localStorage.removeItem("standby.par"); parCache = null;
+document.getElementById("overlay")?.remove(); state = "idle"; gestured = true; localStorage.removeItem("standby.log"); localStorage.removeItem("standby.par"); parCache = null;

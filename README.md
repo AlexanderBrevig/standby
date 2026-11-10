@@ -30,6 +30,8 @@ Patterns: `P` paper (2 shots), `S` steel (1 hit), `R` reload, `M` movement. The 
 
 **Adaptive par** (Drill/Called): a staircase per pattern. Two passes in a row take a step off par, one fail adds a step. A pass is every shot inside par with no mike. The first three reps set the starting par. See [docs/drills-design.md](docs/drills-design.md).
 
+**Returning:** once you've used it, the app opens straight away (no start screen); the first tap anywhere wakes the audio, since browsers only allow sound after a tap.
+
 **Quick tour:** tap **?** (or "New here? Take the quick tour" on the start screen) for a one-minute walkthrough: one string, the voice commands, tuning the mic, the modes, reading a course, scoring and par, hands-free setup. The announcer can demonstrate each part.
 
 **Hands-free setup** (on by default): while idle, say **"setup"** and what you want, in any order. For example "setup bill drill from table, five reps, par adaptive", "setup called, my targets five paper three steel, three to six targets", "setup course, start holster, par off". It reads back what it understood, shows it on screen, and changes nothing until you say "confirm" (or tap Confirm). "Cancel", Stop or silence leaves everything as it was. Add "and go" to start right away. Also: "setup?" or "what's set" (read back the current setup), "setup undo", "setup save as warm up" then "setup warm up", "setup help". Words it doesn't understand are read back, never guessed.

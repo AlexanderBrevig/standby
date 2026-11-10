@@ -149,6 +149,12 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   check("tour remembered", load("standby.toured", false) === true);
   state = "running"; $("help").click(); check("no tour while running", !$("tour").open); state = "idle";
 
+  // 20. without a first tap, a string can't start (browsers block the audio): it says so instead
+  gestured = false;
+  check("no start before a tap", startSession() === false && state === "idle" && statusText === "Tap to wake the audio", statusText);
+  check("idle hint asks for a tap", idleHint() === "Tap anywhere once to wake the audio.");
+  gestured = true;
+
   // 14. generated course + score over 12 shots prompt uses digits
   check("numWord 15", numWord(15) === "15");
   check("no errors", !LOG.some(l => l.startsWith("ERROR") || l.startsWith("REJECT")));
