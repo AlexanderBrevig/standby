@@ -5,102 +5,217 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Standby</title>
 <meta name="description" content="Voice-driven IPSC range commands and a sound-triggered shot timer for dry fire, in the browser.">
-<meta name="theme-color" content="#111418">
+<meta name="theme-color" content="#0f1317">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Big+Shoulders+Display:wght@600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap">
 <style>
+  /* Layout: a shot-timer face up top (dark in both themes, like the device), big thumb controls under it,
+     quiet settings panels with segmented controls below. While a string runs, the face fills the screen. */
   :root {
-    --bg: #f5f6f7; --fg: #15181c; --muted: #5d6670; --card: #ffffff; --line: #d9dde2; --control: #8a939c;
-    --accent: #c2470a; --on-accent: #ffffff; --ok: #2b8a3e; --warn: #c92a2a; --meter: #2b8a3e;
-    --big-max: 4.2rem;
+    --bg: #e9edf0;          /* range concrete */
+    --surface: #ffffff;
+    --ink: #13181d;
+    --muted: #5a6670;
+    --line: #d3dae0;
+    --control: #8a96a1;
+    --accent: #c2410c;      /* blaze orange, deep enough for white text */
+    --accent-hi: #ff6a1a;
+    --on-accent: #ffffff;
+    --ok: #23803c; --warn: #c42b25;
+    /* the timer face: the same in both themes */
+    --face: #0f1317; --face-2: #181e24; --face-ink: #f1f4f6; --face-muted: #8e9aa5; --face-line: #2a333b;
+    --face-ok: #4fd06e; --face-warn: #ff6b5e;
+    --paper: #d9a868;       /* IPSC target tan */
+    --steel: #9fb8cc;       /* painted steel */
+    --font-display: "Big Shoulders Display", "Arial Narrow", "Roboto Condensed", system-ui, sans-serif;
+    --font-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --big-max: 5rem;
+    --radius: 14px;
+    color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #111418; --fg: #e9ecef; --muted: #98a2ad; --card: #1b1f24; --line: #2c3238; --control: #5f6a75;
-      --accent: #ff7a2f; --on-accent: #111418; --ok: #51cf66; --warn: #ff6b6b; --meter: #51cf66;
+      --bg: #0b0e11; --surface: #151a1f; --ink: #e8edf1; --muted: #93a0ab; --line: #252d35; --control: #55626e;
+      --accent: #ff6a1a; --accent-hi: #ff8a45; --on-accent: #1a0c03; --ok: #4fd06e; --warn: #ff6b5e;
+      --face: #05070a; --face-2: #0f1418; --face-line: #222b33;
+      color-scheme: dark;
     }
   }
+  :root[data-theme="dark"] {
+    --bg: #0b0e11; --surface: #151a1f; --ink: #e8edf1; --muted: #93a0ab; --line: #252d35; --control: #55626e;
+    --accent: #ff6a1a; --accent-hi: #ff8a45; --on-accent: #1a0c03; --ok: #4fd06e; --warn: #ff6b5e;
+    --face: #05070a; --face-2: #0f1418; --face-line: #222b33;
+    color-scheme: dark;
+  }
+
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
-  html, body { margin: 0; background: var(--bg); color: var(--fg);
-    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 560px; margin: 0 auto; padding: 16px; }
-  h1 { font-size: 1.1rem; margin: 0 0 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
-  h2 { font-size: .8rem; margin: 18px 0 4px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-  h2:first-child { margin-top: 0; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
-  #display { container-type: inline-size; }   /* the status, mnemonic and timer scale with this card (cqi) */
-  #status { font-size: 1.6rem; font-weight: 700; min-height: 2.2rem; }
-  #hint { color: var(--muted); min-height: 1.4rem; }
-  #drillLine { font-family: ui-monospace, Menlo, monospace; color: var(--muted); font-size: .9rem; min-height: 1.2rem; }
-  #big { font: 700 var(--big-max)/1 ui-monospace, "SF Mono", Menlo, monospace; text-align: center; margin: 12px 0 4px; white-space: nowrap; }
-  #result { font: 700 1.5rem ui-monospace, Menlo, monospace; text-align: center; min-height: 0; }
-  .gaps { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 2px 12px;
-    font-family: ui-monospace, Menlo, monospace; font-size: 1.05rem; margin-top: 6px; }
-  .gaps span { display: flex; justify-content: space-between; gap: 8px; }
-  .gaps i { font-style: normal; color: var(--muted); }
-  #parBox { margin-top: 8px; }
-  #parline { display: block; width: 100%; height: 36px; }
-  #parLabel { color: var(--muted); font-size: .85rem; text-align: right; }
-  #scorepad { margin-top: 12px; }
-  #scoreWords { font: 700 1.3rem ui-monospace, Menlo, monospace; text-align: center; min-height: 1.8rem; letter-spacing: .08em; }
-  #scorepad button { padding: 12px 4px; }
-  .row { display: flex; gap: 8px; }
-  .controls { gap: 12px; margin-bottom: 12px; }
-  .controls #start { flex: 2; }
-  button { flex: 1; font: inherit; font-weight: 700; padding: 16px 8px; border-radius: 10px; min-height: 44px;
-    border: 1px solid var(--control); background: var(--card); color: var(--fg); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-  button.small { flex: 0 0 auto; padding: 6px 12px; }
-  button.link { border: 0; background: none; padding: 0; min-height: 0; font-weight: inherit; text-align: left; color: inherit; text-decoration: underline dotted; }
-  button:disabled { opacity: .45; }
-  .meter { position: relative; height: 14px; background: var(--line); border-radius: 7px; overflow: hidden; margin-top: 12px; }
-  .meter > i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--meter); }
-  .meter > b { position: absolute; top: -2px; bottom: -2px; width: 3px; background: var(--warn); }
-  .meter.hit > i { background: var(--accent); }
-  details summary { cursor: pointer; font-weight: 700; min-height: 32px; }
-  label { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; margin: 10px 0; }
-  label small { grid-column: 1 / -1; color: var(--muted); }
-  input[type=range] { grid-column: 1 / -1; width: 100%; }
-  input[type=number], input[type=text], select, textarea { font: inherit; width: 6.5rem; min-height: 40px; padding: 4px 6px;
-    background: var(--bg); color: var(--fg); border: 1px solid var(--control); border-radius: 6px; }
-  input[type=text], textarea { grid-column: 1 / -1; width: 100%; font-family: ui-monospace, Menlo, monospace; }
-  input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); }
-  [aria-invalid="true"] { border-color: var(--warn); }
-  select { width: 10rem; }
-  #drillInfo { font-size: .9rem; }
-  .err { color: var(--warn); }
-  table { width: 100%; border-collapse: collapse; font-family: ui-monospace, Menlo, monospace; font-size: .85rem; }
-  td, th { text-align: left; padding: 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { color: var(--muted); font-weight: 600; }
-  #log tr.detail td { color: var(--muted); white-space: normal; }
-  #voiceHelp table { font-family: inherit; font-size: .9rem; margin-top: 8px; }
-  #voiceHelp td:first-child { white-space: nowrap; font-weight: 700; }
-  #overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
-  #overlay .card { max-width: 420px; }
-  .muted { color: var(--muted); }
-  #selftest { white-space: pre-wrap; font: .8rem ui-monospace, Menlo, monospace; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 var(--font-body); }
+  main { max-width: 560px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom)); display: grid; gap: 12px; }
+  :focus-visible { outline: 3px solid var(--accent-hi); outline-offset: 2px; }
 
-  /* range view: while a string runs, the phone is metres away and only the display matters */
-  body.running { --big-max: 9rem; }
+  /* wordmark: condensed, slanted like a scoreboard, with the start beep as a dot */
+  .wordmark { font: italic 900 1.9rem/1 var(--font-display); text-transform: uppercase; letter-spacing: .02em; display: inline-flex; align-items: baseline; gap: 4px; }
+  .beep { width: .38em; height: .38em; border-radius: 50%; background: var(--accent-hi); display: inline-block; box-shadow: 0 0 0 0 var(--accent-hi); animation: beep 2.4s ease-out infinite; }
+  @keyframes beep { 0%, 70% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-hi) 60%, transparent); } 100% { box-shadow: 0 0 0 .6em transparent; } }
+  .masthead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 2px 2px 0; }
+  .tag { font: 700 .75rem var(--font-body); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  h2 { font: 800 .95rem/1 var(--font-display); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 22px 0 6px; }
+  h2:first-child { margin-top: 0; }
+
+  /* ---- the timer face ---- */
+  #display {
+    container-type: inline-size;   /* status, mnemonic and timer scale with it (cqi) */
+    --muted: var(--face-muted); --line: var(--face-line); --ok: var(--face-ok); --warn: var(--face-warn);
+    background: radial-gradient(120% 90% at 50% 0%, var(--face-2), var(--face)); color: var(--face-ink);
+    border: 1px solid var(--face-line); border-radius: 20px; padding: 18px 18px 16px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 10px 30px -18px rgba(0, 0, 0, .55);
+  }
+  #status { font: 800 clamp(1.7rem, 7cqi, 2.2rem)/1.05 var(--font-display); letter-spacing: .01em; min-height: 1.1em; text-wrap: balance; }
+  #hint { color: var(--muted); min-height: 1.4em; margin-top: 4px; }
+  #drillLine { font: 500 .85rem var(--font-mono); color: var(--muted); min-height: 1.3em; margin-top: 6px; letter-spacing: .02em; }
+  #big { font: 800 var(--big-max)/1 var(--font-display); font-variant-numeric: tabular-nums; text-align: center; margin: 14px 0 2px; white-space: nowrap; letter-spacing: .01em; }
+  #big.pulse { animation: pulse .22s ease-out; }
+  @keyframes pulse { 0% { color: var(--accent-hi); transform: scale(1.04); } 100% { color: inherit; transform: none; } }
+  #big > span { display: inline-block; margin: 0 .09em; }
+  #big .mk-start { color: var(--face-muted); margin-right: .25em; }
+  #big .mk-paper { color: var(--paper); }
+  #big .mk-steel { color: var(--steel); }
+  #big .mk-reload { color: var(--accent-hi); }
+  #big .mk-move { color: #7fd1bd; }
+  #big .mk-dim { color: var(--face-muted); font-size: .6em; }
+  #result { font: 700 1.35rem var(--font-mono); font-variant-numeric: tabular-nums; text-align: center; }
+  .gaps { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 4px 14px; font: 500 1rem var(--font-mono); font-variant-numeric: tabular-nums; margin-top: 8px; }
+  .gaps span { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--line); }
+  .gaps i { font: 400 .9rem var(--font-body); color: var(--muted); }
+  #parBox { margin-top: 10px; }
+  #parline { display: block; width: 100%; height: 40px; }
+  #parLabel { color: var(--muted); font-size: .85rem; text-align: right; }
+  .meter { position: relative; height: 8px; background: var(--face-line); border-radius: 4px; overflow: hidden; margin-top: 14px; }
+  .meter > i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--face-ok); transition: width .05s linear; }
+  .meter > b { position: absolute; top: -2px; bottom: -2px; width: 3px; background: var(--accent-hi); }
+  .meter.hit > i { background: var(--accent-hi); }
+
+  /* score pad keys on the face */
+  #scorepad { margin-top: 14px; display: grid; gap: 8px; }
+  #scoreWords { font: 700 1.3rem var(--font-mono); text-align: center; min-height: 1.6em; letter-spacing: .06em; }
+  #display button { background: rgba(255, 255, 255, .06); border-color: var(--face-line); color: var(--face-ink); }
+  #scoreTaps button { font: 800 1.6rem/1 var(--font-display); padding: 14px 4px; }
+
+  /* ---- controls ---- */
+  .row { display: flex; gap: 8px; }
+  .controls { gap: 10px; }
+  .controls #start { flex: 2.2; }
+  button { flex: 1; font: 700 1rem var(--font-body); padding: 14px 10px; border-radius: 12px; min-height: 48px; cursor: pointer;
+    border: 1px solid var(--control); background: var(--surface); color: var(--ink); transition: transform .08s ease, background-color .15s ease; }
+  button:active:not(:disabled) { transform: scale(.98); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .controls button { font: italic 900 1.45rem/1 var(--font-display); text-transform: uppercase; letter-spacing: .04em; min-height: 62px; border-radius: 16px; }
+  .controls button.primary { box-shadow: 0 8px 20px -10px var(--accent); }
+  button.small { flex: 0 0 auto; padding: 8px 14px; min-height: 40px; font-size: .9rem; }
+  button.link { border: 0; background: none; padding: 0; min-height: 0; font: inherit; text-align: left; color: inherit; text-decoration: underline dotted; }
+  button:disabled { opacity: .4; cursor: default; }
+
+  /* ---- settings ---- */
+  details > summary { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    font: 800 .95rem/1 var(--font-display); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); min-height: 28px; }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::after { content: "+"; font: 700 1.3rem/1 var(--font-body); color: var(--muted); }
+  details[open] > summary::after { content: "−"; }
+  details[open] > summary { margin-bottom: 8px; }
+
+  label, .field { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+  h2 + label, h2 + .field, h2 + div > label:first-child, h2 + div > .field:first-child, summary + label, summary + .field { border-top: 0; }
+  label small, .field small { grid-column: 1 / -1; color: var(--muted); font-size: .88rem; }
+  .field-label { font-weight: 700; }
+  .field > .seg { grid-column: 1 / -1; }
+  input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+  input[type=number], input[type=text], select, textarea { font: inherit; width: 6.5rem; min-height: 44px; padding: 6px 10px;
+    background: var(--bg); color: var(--ink); border: 1px solid var(--control); border-radius: 10px; }
+  input[type=number] { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+  input[type=text], textarea { grid-column: 1 / -1; width: 100%; font-family: var(--font-mono); }
+  [aria-invalid="true"] { border-color: var(--warn); box-shadow: 0 0 0 2px color-mix(in srgb, var(--warn) 25%, transparent); }
+  /* switches */
+  input[type=checkbox] { appearance: none; width: 50px; height: 30px; border-radius: 15px; background: var(--control); position: relative; cursor: pointer; transition: background-color .15s ease; margin: 0; }
+  input[type=checkbox]::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .15s ease; }
+  input[type=checkbox]:checked { background: var(--accent); }
+  input[type=checkbox]:checked::after { transform: translateX(20px); }
+  /* segmented controls and preset chips (built from the hidden selects) */
+  .seg { display: flex; padding: 3px; gap: 3px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; }
+  .seg button { white-space: nowrap; min-height: 40px; padding: 8px 4px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-weight: 700; font-size: .95rem; }
+  .seg button[aria-checked="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .18); }
+  .seg.chips { flex-wrap: wrap; background: none; border: 0; padding: 0; gap: 6px; }
+  .seg.chips button { flex: 0 0 auto; border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; min-height: 38px; background: var(--surface); }
+  .seg.chips button[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); box-shadow: none; }
+  #drillInfo { font-size: .9rem; padding-bottom: 4px; }
+  .err { color: var(--warn); }
+  .muted { color: var(--muted); }
+
+  /* log */
+  .loghead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .loghead h2 { margin: 0; }
+  .logwrap { overflow-x: auto; margin-top: 8px; }
+  table { width: 100%; border-collapse: collapse; font: 500 .85rem var(--font-mono); font-variant-numeric: tabular-nums; }
+  td, th { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font: 700 .72rem var(--font-body); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  #log tr.detail td { color: var(--muted); white-space: normal; }
+  .pass { color: var(--ok); } .fail { color: var(--warn); }
+  #voiceHelp table { font: .92rem var(--font-body); }
+  #voiceHelp td:first-child { white-space: nowrap; font-weight: 700; color: var(--accent); }
+  .foot { color: var(--muted); font-size: .85rem; margin: 4px 2px 0; }
+  .foot a { color: inherit; }
+
+  /* splash */
+  #overlay { position: fixed; inset: 0; z-index: 10; overflow: auto; display: grid; place-items: center; padding: 24px 20px;
+    background: radial-gradient(120% 80% at 50% 0%, var(--face-2), var(--face)); color: var(--face-ink); }
+  .splash { max-width: 420px; display: grid; gap: 18px; }
+  .splash .wordmark { font-size: clamp(3.2rem, 18vw, 4.6rem); }
+  .lede { font-size: 1.15rem; margin: 0; text-wrap: balance; }
+  .checks { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; color: var(--face-muted); }
+  .checks li { padding-left: 22px; position: relative; }
+  .checks li::before { content: ""; position: absolute; left: 2px; top: .55em; width: 8px; height: 8px; border-radius: 50%; background: var(--face-line); }
+  .checks .safety { color: var(--face-ink); font-weight: 700; }
+  .checks .safety::before { background: var(--accent-hi); }
+  .splash button { min-height: 60px; font: italic 900 1.5rem/1 var(--font-display); text-transform: uppercase; letter-spacing: .04em; }
+  #selftest { white-space: pre-wrap; font: .8rem var(--font-mono); }
+
+  /* range view: while a string runs, the phone is metres away and only the face matters */
+  body.running { --big-max: 10rem; }
   body.running .chrome, body.running #meter { display: none; }
-  body.running #display { min-height: calc(100dvh - 120px); display: flex; flex-direction: column; justify-content: center; }
-  body.running #status { font-size: clamp(1.6rem, 8cqi, 3.2rem); line-height: 1.15; }
-  body.running #hint { font-size: 1.2rem; color: var(--fg); }
-  body.running .gaps { font-size: clamp(1.05rem, 4.5cqi, 1.6rem); }
+  body.running main { min-height: 100dvh; grid-template-rows: 1fr auto; }
+  body.running #display { display: flex; flex-direction: column; justify-content: center; border-radius: 24px; }
+  body.running #status { font-size: clamp(2rem, 10cqi, 3.6rem); }
+  body.running #hint { font-size: 1.2rem; color: var(--face-ink); opacity: .85; }
+  body.running .gaps { font-size: clamp(1rem, 4.6cqi, 1.6rem); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
 <div id="overlay">
-  <div class="card">
-    <h1>Standby</h1>
-    <p>IPSC range commands, a random start beep and a sound-triggered timer for <b>dry fire</b>.</p>
-    <p class="muted">Needs the microphone (shot detection and voice commands) and works best in Chrome on Android. Say <b>“restart”</b> to run a string, <b>“not ready”</b> after “Are you ready?” to hold.</p>
-    <p class="muted">Dry-fire ritual first: no ammunition in the room.</p>
+  <div class="splash">
+    <div class="wordmark">Standby<span class="beep" aria-hidden="true"></span></div>
+    <p class="lede">IPSC range commands, a random start beep and a shot timer that listens for your dry-fire click.</p>
+    <ul class="checks">
+      <li>Uses the microphone for shots and voice commands. Works best in Chrome on Android.</li>
+      <li>Say <b>“restart”</b> to run a string, <b>“not ready”</b> after “Are you ready?” to hold.</li>
+      <li class="safety">Dry-fire ritual first: no ammunition in the room.</li>
+    </ul>
     <button class="primary" id="enable">Tap to enable</button>
   </div>
 </div>
 
 <main>
-  <h1 class="chrome">Standby</h1>
+  <header class="masthead chrome">
+    <div class="wordmark">Standby<span class="beep" aria-hidden="true"></span></div>
+    <span class="tag">Dry-fire IPSC timer</span>
+  </header>
   <div class="card" id="display">
     <div role="status" aria-live="polite" aria-atomic="true">
       <div id="status">Idle</div>
@@ -150,15 +265,15 @@
 
   <div class="card chrome">
     <h2>What to shoot</h2>
-    <label>Mode <select id="mode"><option value="course">Course</option><option value="drill">Drill</option><option value="called">Called</option></select>
-      <small id="modeHelp"></small></label>
+    <div class="field"><span class="field-label" id="mode-label">Mode</span><select id="mode" data-seg aria-labelledby="mode-label" hidden><option value="course">Course</option><option value="drill">Drill</option><option value="called">Called</option></select>
+      <small id="modeHelp"></small></div>
     <div data-modes="drill">
-      <label>Preset <select id="preset"></select></label>
+      <div class="field"><span class="field-label" id="preset-label">Preset</span><select id="preset" data-seg aria-labelledby="preset-label" hidden></select></div>
       <label>Pattern <input type="text" id="pattern" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="drillInfo">
         <small><b>P S P</b> = paper, steel, paper · <b>2P</b> = two papers · <b>P1</b> = one shot on a paper · <b>5S</b> = five steel · <b>R</b> reload · <b>M</b> move. A paper gets two shots unless a number follows it.</small></label>
     </div>
     <div data-modes="called">
-      <label>Courses <select id="calledFrom"><option value="pool">Random from a list</option><option value="targets">Generate from my targets</option></select></label>
+      <div class="field"><span class="field-label" id="calledFrom-label">Courses</span><select id="calledFrom" data-seg aria-labelledby="calledFrom-label" hidden><option value="pool">From a list</option><option value="targets">From my targets</option></select></div>
       <div data-from="pool">
         <label>List <textarea id="pool" rows="5" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="drillInfo"></textarea>
         <small>One pattern per line (or separated by |). One is picked at random each rep and briefed.</small></label>
@@ -175,20 +290,20 @@
     <div id="drillInfo"></div>
 
     <h2>How</h2>
-    <label>Start position <select id="startPos"><option value="holster">Holster</option><option value="ready">Low ready</option><option value="table">Table</option><option value="random">Random</option></select>
-      <small>Names the first gap (draw, first shot, pickup) and keeps a separate par. Random picks one per rep and calls it out.</small></label>
+    <div class="field"><span class="field-label" id="startPos-label">Start position</span><select id="startPos" data-seg aria-labelledby="startPos-label" hidden><option value="holster">Holster</option><option value="ready">Low ready</option><option value="table">Table</option><option value="random">Random</option></select>
+      <small>Names the first gap (draw, first shot, pickup) and keeps a separate par. Random picks one per rep and calls it out.</small></div>
     <div data-modes="drill called">
       <label>Reps <input type="number" id="reps" min="1" max="50" step="1"></label>
       <label data-reps>Rep interval (s) <input type="number" id="repInterval" min="2" max="60" step="1"></label>
     </div>
-    <label>Par <select id="parMode"><option value="off">Off</option><option value="fixed">Fixed</option><option value="adaptive">Adaptive</option></select>
-      <small id="parHelp"></small></label>
+    <div class="field"><span class="field-label" id="parMode-label">Par</span><select id="parMode" data-seg aria-labelledby="parMode-label" hidden><option value="off">Off</option><option value="fixed">Fixed</option><option value="adaptive">Adaptive</option></select>
+      <small id="parHelp"></small></div>
     <label data-par="fixed">Par time (s) <input type="number" id="par" min="0.3" max="30" step="0.05"></label>
     <label data-par="adaptive">Adaptive step (s) <input type="number" id="parStep" min="0.01" max="0.5" step="0.01"></label>
     <div data-par="adaptive" class="row"><button class="small" id="resetPar">Reset adaptive par</button></div>
     <label>Score after string <input type="checkbox" id="score">
       <small>Say one word per shot: alpha, charlie, delta, mike (a steel hit is alpha), “all alpha”, or counts like “three alpha one charlie”. Or tap the letters.</small></label>
-    <label data-score>Power factor <select id="powerFactor"><option value="minor">Minor</option><option value="major">Major</option></select></label>
+    <div class="field" data-score><span class="field-label" id="powerFactor-label">Power factor</span><select id="powerFactor" data-seg aria-labelledby="powerFactor-label" hidden><option value="minor">Minor</option><option value="major">Major</option></select></div>
   </div>
 
   <div class="card chrome">
@@ -226,13 +341,13 @@
   </div>
 
   <div class="card chrome">
-    <div class="row" style="align-items:center">
-      <b style="flex:1">Log</b>
+    <div class="loghead">
+      <h2>Log</h2>
       <button id="clearLog" class="small">Clear</button>
     </div>
-    <table><thead><tr><th>Time</th><th>Drill</th><th>Total</th><th>HF</th><th>Par</th></tr></thead><tbody id="log"></tbody></table>
+    <div class="logwrap"><table><thead><tr><th>Time</th><th>Drill</th><th>Total</th><th>HF</th><th>Par</th></tr></thead><tbody id="log"></tbody></table></div>
   </div>
-  <p class="muted chrome" style="font-size:.85rem">Times run from the beep as the mic hears it, so speaker/mic latency cancels out. Saying “bang” adds your voice reaction time: use the click for numbers. <a href="https://github.com/AlexanderBrevig/standby" style="color:inherit">Source</a></p>
+  <p class="foot chrome">Times run from the beep as the mic hears it, so speaker/mic latency cancels out. Saying “bang” adds your voice reaction time: use the click for numbers. <a href="https://github.com/AlexanderBrevig/standby">Source</a></p>
 </main>
 
 <script>
@@ -657,6 +772,7 @@ function refreshDrillUi() {
       (dup ? " Patterns with the same shot count can't be told apart: the timer only checks the count." : "") + "</span>";
   }
   $("drillInfo").innerHTML = info;
+  syncSegments();
   if (state === "idle") {
     $("drillLine").textContent = drillLine();
     if (statusText === "Idle") $("hint").textContent = idleHint();
@@ -933,8 +1049,38 @@ function setStatus(text, hint = "") { statusText = text; $("status").textContent
 function setBig(text) { $("big").textContent = text; $("big").style.fontSize = ""; }
 // the course mnemonic ("T P S P") in the big display, shrunk to fit one line (monospace: ~0.6em per character)
 function setMnemonic(text) {
-  $("big").textContent = text;
-  $("big").style.fontSize = `min(var(--big-max), ${(100 / (text.length * 0.65)).toFixed(2)}cqi)`;
+  // each mark coloured by what it is: start position, paper, steel, reload, movement
+  const kind = (tok, i) => i === 0 && /^[HLT?]$/.test(tok) ? "mk-start" : /^P\d*$/.test(tok) ? "mk-paper" : tok === "S" ? "mk-steel"
+    : tok === "R" ? "mk-reload" : tok === "M" ? "mk-move" : tok.startsWith("×") ? "mk-dim" : "";
+  $("big").replaceChildren(...text.split(" ").flatMap((tok, i) => {
+    const span = Object.assign(document.createElement("span"), { textContent: tok, className: kind(tok, i) });
+    return i ? [" ", span] : [span];
+  }));
+  $("big").style.fontSize = `min(var(--big-max), ${(100 / (text.length * 0.62)).toFixed(2)}cqi)`;   // condensed face: ~0.5em per character, plus mark spacing
+}
+function pulseBig() {
+  const big = $("big");
+  big.classList.remove("pulse"); void big.offsetWidth; big.classList.add("pulse");
+}
+// segmented controls and preset chips, built from the hidden selects (which stay the settings' source of truth)
+function syncSegments() {
+  for (const sel of document.querySelectorAll("select[data-seg]")) {
+    let seg = sel.nextElementSibling;
+    if (!seg || !seg.classList.contains("seg")) {
+      seg = Object.assign(document.createElement("div"), { className: "seg" + (sel.id === "preset" ? " chips" : "") });
+      seg.setAttribute("role", "radiogroup");
+      seg.setAttribute("aria-labelledby", sel.getAttribute("aria-labelledby"));
+      seg.addEventListener("click", e => {
+        const b = e.target.closest("button[data-v]");
+        if (!b || b.disabled) return;
+        sel.value = b.dataset.v;
+        sel.dispatchEvent(new Event("change"));
+        syncSegments();
+      });
+      sel.after(seg);
+    }
+    seg.innerHTML = Array.from(sel.options, o => `<button type="button" role="radio" data-v="${escapeHtml(o.value)}" aria-checked="${o.value === sel.value}"${o.disabled ? " disabled" : ""}>${escapeHtml(o.text)}</button>`).join("");
+  }
 }
 // "draw 0.98", "split 0.24", "transition 0.31" as a grid; old log entries have no labels
 function gapsHtml(hits, labels) {
@@ -1491,6 +1637,7 @@ function onHit(t) {
   s.raw.push(t);
   const hits = hitsOf(s);
   setBig(fmt(hits[hits.length - 1]));
+  pulseBig();
   $("shots").innerHTML = gapsHtml(hits, shotLabels(s.drill, s.start, hits.length));
   $("result").textContent = s.drill ? `${hits.length}/${s.drill.n}` : `${hits.length}`;
 }
@@ -1800,7 +1947,7 @@ function renderLog() {
     const drill = (e.pattern ? escapeHtml(e.pattern) + (e.incomplete ? ` (${e.n}/${e.N})` : "") : `${e.n} ${plural(e.n, "shot")}`) +
       (e.start && e.start !== "holster" && STARTS[e.start] ? ` · ${STARTS[e.start].name.toLowerCase()}` : "");
     const passed = e.pass ?? (e.total <= e.par);
-    const par = e.par ? `${fmt(e.par)} ${passed ? "✓" : "✗"}` : "";
+    const par = e.par ? `${fmt(e.par)} <span class="${passed ? "pass" : "fail"}">${passed ? "✓" : "✗"}</span>` : "";
     const open = expanded.has(e.at);
     let row = `<tr><td><button class="link" data-i="${e.at}" aria-expanded="${open}">${time}</button></td><td>${drill}</td><td>${fmt(e.total)}</td><td>${e.hf != null ? fmt(e.hf) : ""}</td><td>${par}</td></tr>`;
     if (open) {
