@@ -138,7 +138,8 @@
         <input type="range" id="threshold" min="-50" max="-1" step="1">
         <small>Shots are sound peaks above this level (dBFS). Use “Mic test”: set it just above room noise, below the dry-fire click.</small></label>
       <label>Echo / min split (s) <input type="number" id="refractory" min="0.02" max="0.5" step="0.01"></label>
-      <label>Start command <select id="command"><option>Make ready</option><option>Load and make ready</option></select></label>
+      <label>Start command <select id="command"><option value="auto">Automatic</option><option>Make ready</option><option>Load and make ready</option></select>
+        <small>Automatic: “Make ready” for a table start, “Load and make ready” otherwise. A table start is always “Make ready”.</small></label>
       <label>Make-ready time (s) <input type="number" id="prepTime" min="0" max="30" step="0.5"></label>
       <label>“Not ready” window (s) <input type="number" id="readyWindow" min="0" max="10" step="0.5"></label>
       <label>Standby delay min (s) <input type="number" id="delayMin" min="0.5" max="10" step="0.1"></label>
@@ -169,7 +170,7 @@
 
 // ---------- settings ----------
 const DEFAULTS = {
-  threshold: -18, refractory: 0.08, command: "Make ready", prepTime: 3, readyWindow: 3,
+  threshold: -18, refractory: 0.08, command: "auto", prepTime: 3, readyWindow: 3,
   delayMin: 1, delayMax: 4, par: 2, silence: 5, maxWait: 10,
   early: true, voice: true, closing: true, speakResults: true,
   mode: "course", startPos: "holster", pattern: "P S", pool: "2S | P S | 2P | 2P S", callPause: 1.5,
@@ -181,6 +182,10 @@ if (!S.v) { if (S.silence === 3) S.silence = DEFAULTS.silence; S.v = 2; }   // o
 if (S.v < 3) {   // par 0 used to mean off; now there's a par mode
   if (stored.par > 0) S.parMode = "fixed"; else S.par = DEFAULTS.par;
   S.v = 3;
+}
+if (S.v < 4) {   // the start command now follows the start position by default; "Make ready" was the old default
+  if (S.command === "Make ready") S.command = "auto";
+  S.v = 4;
 }
 const RESUME = 2.5;   // s after "If you are finished": a shot here means the string goes on
 function load(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } }
@@ -228,6 +233,8 @@ const STARTS = {
   ready: { name: "Low ready", first: "first shot", say: "Low ready." },
   table: { name: "Table", first: "pickup", say: "Gun on the table." },
 };
+// nothing to load into a gun on the table
+const startCommand = start => start === "table" ? "Make ready" : S.command === "auto" ? "Load and make ready" : S.command;
 function pickStart() {
   const keys = Object.keys(STARTS);
   return S.startPos === "random" ? keys[Math.floor(Math.random() * keys.length)] : STARTS[S.startPos] ? S.startPos : "holster";
@@ -703,7 +710,7 @@ async function runString({ first, drill, start }, alive) {
   // gets the full start command so there's time to change position
   const sayStart = start !== "holster" || S.startPos === "random" ? STARTS[start].say : "";
   if (first || S.startPos === "random") {
-    const command = start === "table" ? "Make ready" : S.command;   // nothing to load into a gun on the table
+    const command = startCommand(start);
     setStatus(command, sayStart ? STARTS[start].name : "Get into your start position.");
     await speak(sayStart ? `${command}. ${sayStart}` : command);
     await sleep(S.prepTime * 1000);
