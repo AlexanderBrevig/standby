@@ -111,8 +111,7 @@
     </div>
     <div data-modes="called">
       <label>Pool <textarea id="pool" rows="3" autocomplete="off" autocapitalize="characters" spellcheck="false"></textarea>
-        <small>Patterns separated by | or new lines. One is picked at random and called out before “Standby”.</small></label>
-      <label>Call pause (s) <input type="number" id="callPause" min="0" max="5" step="0.5"></label>
+        <small>Patterns separated by | or new lines. One is picked at random and briefed with the start command each rep.</small></label>
     </div>
     <div id="drillInfo"></div>
     <label>Start <select id="startPos"><option value="holster">Holster</option><option value="ready">Low ready</option><option value="table">Table</option><option value="random">Random</option></select>
@@ -173,7 +172,7 @@ const DEFAULTS = {
   threshold: -18, refractory: 0.08, command: "auto", prepTime: 3, readyWindow: 3,
   delayMin: 1, delayMax: 4, par: 2, silence: 5, maxWait: 10,
   early: true, voice: true, closing: true, speakResults: true,
-  mode: "course", startPos: "holster", pattern: "P S", pool: "2S | P S | 2P | 2P S", callPause: 1.5,
+  mode: "course", startPos: "holster", pattern: "P S", pool: "2S | P S | 2P | 2P S",
   reps: 1, repInterval: 5, parMode: "off", parStep: 0.05, score: false, powerFactor: "minor",
 };
 const stored = load("standby.settings", {});
@@ -404,7 +403,7 @@ function renderParLine(key) {
 const MODE_HELP = {
   course: "Open string: ends after silence, then the closing commands.",
   drill: "Fixed pattern: ends on the last expected shot.",
-  called: "A random pattern from the pool is called out before “Standby”.",
+  called: "A random pattern from the pool each rep, briefed with the start command.",
 };
 for (const [name, pattern] of PRESETS) $("preset").add(new Option(name, pattern));
 $("preset").add(new Option("Custom", ""));
@@ -708,12 +707,12 @@ async function runString({ first, drill, start }, alive) {
   setBig("0.00"); $("shots").textContent = "";
 
   // briefing: "From table. Paper, paper, steel. Make ready." The start is said when it isn't the
-  // holster default, or always when random; random gives every rep a briefing to change position.
-  // A called pattern is kept for the call before "Standby".
-  if (first || S.startPos === "random") {
+  // holster default, or always when random. Random starts and called patterns change every rep,
+  // so those reps all get a briefing.
+  if (first || S.startPos === "random" || S.mode === "called") {
     const command = startCommand(start);
     const from = start !== "holster" || S.startPos === "random" ? STARTS[start].from : "";
-    const cof = drill && S.mode === "drill" ? cap(drill.call) : "";
+    const cof = drill ? cap(drill.call) : "";
     const brief = [from, cof].filter(Boolean).join(" ");
     setStatus(command, brief || "Get into your start position.");
     await speak(brief ? `${brief} ${command}.` : command);
@@ -745,12 +744,6 @@ async function runString({ first, drill, start }, alive) {
     return "error";
   }
   if (!alive()) return null;
-  if (drill && S.mode === "called") {
-    setStatus(cap(drill.call.replace(/\.$/, "")), drill.key);
-    await speak(drill.call);
-    await sleep(S.callPause * 1000);
-    if (!alive()) return null;
-  }
   setStatus("Standby", drill ? drill.key : "");
   await speak("Standby");
   if (!alive()) return null;
