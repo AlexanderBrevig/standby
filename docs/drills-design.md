@@ -68,13 +68,13 @@ A **Start** dropdown, separate from the pattern, applies in every mode: Holster 
 
 - It names the first gap: `draw` (holster), `first shot` (low ready), `pickup` (table).
 - Adaptive par is kept per pattern **and** start: the key is `P S` for holster (unchanged) and `P S @ready` / `P S @table` otherwise. A draw and a shot from ready differ by several tenths, so they mustn't share a par.
-- **Briefing:** the start command comes with the course of fire: "From table. Paper, paper, steel. Make ready." / "Paper, paper, steel. Load and make ready." (holster isn't named unless the start is random). Called mode briefs every rep, since the pattern changes. (An earlier version called the pattern after "Are you ready?", just before "Standby"; that was too late and too easy to miss, so it moved into the briefing.) The start command setting is Automatic by default ("Make ready" for a table start, "Load and make ready" otherwise). Make ready / Load and make ready remain as fixed overrides, but a table start always says "Make ready". A saved "Make ready", the old default, migrates to Automatic.
+- **Briefing:** the start command comes with the course of fire: "From table. Paper, paper, steel. Make ready." / "Paper, paper, steel. Load and make ready." (holster isn't named unless the start is random). Called mode briefs every rep, since the pattern changes. **Confirmation** (setting, on by default): the briefing ends with "Say continue to proceed." and waits, however long, for "continue" / "proceed" / "go ahead" or the Continue button (the Start button relabelled) before the start command. "Repeat" reads it again. Listening only starts after the announcer has finished, so its own "continue" isn't heard as the answer. No briefing (Course from the holster) means no confirmation. (An earlier version called the pattern after "Are you ready?", just before "Standby"; that was too late and too easy to miss, so it moved into the briefing.) The start command setting is Automatic by default ("Make ready" for a table start, "Load and make ready" otherwise). Make ready / Load and make ready remain as fixed overrides, but a table start always says "Make ready". A saved "Make ready", the old default, migrates to Automatic.
 - Random picks a start per rep, and every rep gets the full start command for it ("Load and make ready. Holster.", "Make ready. Gun on the table."), with the make-ready time to change position. The set summary then skips totals, since they don't compare.
 
 ## 3. Drill string flow
 
 ```
-[rep 1; every rep with a random start or in Called mode] ["From table."] ["Paper, paper, steel."] Make ready → (prep time)
+[rep 1; every rep with a random start or in Called mode] ["From table."] ["Paper, paper, steel."] "Say continue to proceed." → (wait for "continue") → Make ready → (prep time)
 Are you ready? → (not-ready window)
 Standby → random delay → BEEP
 shots…   (labelled live: "draw 0.98 · split 0.24 · transition 0.31")

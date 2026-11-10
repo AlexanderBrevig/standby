@@ -148,6 +148,8 @@
       <label>Max wait for first shot (s) <input type="number" id="maxWait" min="2" max="60" step="1"></label>
       <label>Flag shots before the beep <input type="checkbox" id="early"></label>
       <label>Voice commands (“restart”, “not ready”) <input type="checkbox" id="voice"></label>
+      <label>Wait for “continue” after the briefing <input type="checkbox" id="confirm">
+        <small>“From low ready. Paper, steel. Say continue to proceed.” Say “continue” or tap Continue to get the make-ready command; “repeat” reads the briefing again.</small></label>
       <label>Closing commands (unload &amp; show clear …) <input type="checkbox" id="closing">
         <small>Course mode only.</small></label>
       <label>Speak results <input type="checkbox" id="speakResults"></label>
@@ -171,7 +173,7 @@
 const DEFAULTS = {
   threshold: -18, refractory: 0.08, command: "auto", prepTime: 3, readyWindow: 3,
   delayMin: 1, delayMax: 4, par: 2, silence: 5, maxWait: 10,
-  early: true, voice: true, closing: true, speakResults: true,
+  early: true, voice: true, confirm: true, closing: true, speakResults: true,
   mode: "course", startPos: "holster", pattern: "P S", pool: "2S | P S | 2P | 2P S",
   reps: 1, repInterval: 5, parMode: "off", parStep: 0.05, score: false, powerFactor: "minor",
 };
@@ -640,6 +642,7 @@ function idleListen() {
 // keep: leave the last result (or error) on screen instead of showing "Idle"
 function goIdle(keep = false) {
   state = "idle";
+  confirmGo = null; $("start").textContent = "Start";
   $("stop").disabled = true; $("test").disabled = false;
   $("test").textContent = "Mic test";
   if (!keep) setStatus("Idle", idleHint());
@@ -689,6 +692,31 @@ async function startSession() {
   if (alive()) goIdle(keep);
 }
 
+// read the briefing and wait, however long, for "continue" (or the Continue button); "repeat" reads it
+// again. Listening starts only after the announcer has finished, or it would hear its own "continue".
+let confirmGo = null;
+async function confirmBriefing(brief, alive) {
+  let go = false, again = true, stop = () => {};
+  confirmGo = () => { go = true; };
+  $("start").textContent = "Continue"; $("start").disabled = false;
+  const ask = canListen() ? "Say continue to proceed." : "Tap continue to proceed.";
+  setStatus(brief, canListen() ? "Say “continue” or tap Continue. “Repeat” reads it again." : "Tap Continue.");
+  while (!go && alive()) {
+    if (again) {
+      again = false; stop();
+      await speak(`${brief} ${ask}`);
+      if (go || !alive()) break;
+      stop = listen(t => {
+        if (/\b(continue|proceed|go ahead|carry on)\b/.test(t)) go = true;
+        else if (/\b(repeat|again)\b/.test(t)) again = true;
+      });
+    }
+    await sleep(50);
+  }
+  stop(); confirmGo = null;
+  $("start").textContent = "Start"; $("start").disabled = true;
+}
+
 async function repPause(alive) {
   let hold = false;
   const stop = listen(t => { if (/\b(stop|hold|pause|wait)\b|not ready/.test(t)) hold = true; });
@@ -714,8 +742,12 @@ async function runString({ first, drill, start }, alive) {
     const from = start !== "holster" || S.startPos === "random" ? STARTS[start].from : "";
     const cof = drill ? cap(drill.call) : "";
     const brief = [from, cof].filter(Boolean).join(" ");
+    if (brief && S.confirm) {
+      await confirmBriefing(brief, alive);
+      if (!alive()) return null;
+    }
     setStatus(command, brief || "Get into your start position.");
-    await speak(brief ? `${brief} ${command}.` : command);
+    await speak(brief && !S.confirm ? `${brief} ${command}.` : command);
     await sleep(S.prepTime * 1000);
     if (!alive()) return null;
   }
@@ -1081,7 +1113,7 @@ $("enable").addEventListener("click", async () => {
   keepAwake();
   goIdle();
 });
-$("start").addEventListener("click", () => { if (state === "idle") startSession(); });
+$("start").addEventListener("click", () => { if (state === "idle") startSession(); else if (confirmGo) confirmGo(); });
 $("stop").addEventListener("click", () => {
   run++; string = null; pending = null; closeMic(); hideScorepad();
   if ("speechSynthesis" in window) speechSynthesis.cancel();
