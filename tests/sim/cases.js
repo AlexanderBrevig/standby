@@ -164,7 +164,7 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   idleText("repeat"); await until(() => state === "running"); await until(() => state === "idle");
   const again = lastLog();
   check("repeat: same course and start", again && firstRun && again.at !== firstRun.at && again.pattern === firstRun.pattern && again.start === firstRun.start, JSON.stringify([firstRun && [firstRun.pattern, firstRun.start], again && [again.pattern, again.start]]));
-  check("idle hint offers repeat", /repeat/.test(idleHint()), idleHint());
+  check("idle hint offers the same course", /same course/.test(idleHint()), idleHint());
   // between reps
   setup({ mode: "called", calledFrom: "pool", pool: "P S\n2S\nP\nP S P\n2P S", startPos: "random", reps: 2 }); SAID.length = 0; rep = 0;
   REPLIES = [[/^Next in/, "repeat"]];
@@ -214,6 +214,25 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   const big = $("big");
   check("stop: idle face with the preview", state === "idle" && statusText === "Idle" && big.textContent.replace(/\s+/g, " ").trim() === setupMarks(S), `${statusText} | ${big.textContent}`);
   check("stop: nothing overflows", big.scrollWidth <= big.clientWidth + 1, `${big.scrollWidth} > ${big.clientWidth}`);
+
+  // 25. restart = the same course again; next / Start = a new one; the Restart rep button keeps the course
+  setup({ mode: "called", calledFrom: "pool", pool: "P S\n2S\nP\nP S P\n2P S", startPos: "random", confirm: false, reps: 1 }); SAID.length = 0; rep = 0; REPLIES = [];
+  PLAN = s => s.drill.shots.map((_, i) => 1 + i * 0.3);
+  localStorage.removeItem("standby.log");
+  startSession(); await until(() => state === "idle");
+  const a = lastLog();
+  idleText("restart"); await until(() => state === "running"); await until(() => state === "idle");
+  const b = lastLog();
+  check("restart: same course", b.at !== a.at && b.pattern === a.pattern && b.start === a.start, JSON.stringify([[a.pattern, a.start], [b.pattern, b.start]]));
+  idleText("next"); await until(() => state === "running"); await until(() => state === "idle");
+  const c = lastLog();
+  check("next: a new course", c.at !== b.at && c.pattern !== b.pattern, JSON.stringify([b.pattern, c.pattern]));
+  setup({ mode: "called", calledFrom: "pool", pool: "P S\n2S\nP\nP S P\n2P S", startPos: "holster", confirm: true, reps: 1 }); SAID.length = 0; REPLIES = [];
+  startSession(); await until(() => confirmGo !== null);
+  const before = lastCourse.drill.key;
+  confirmGo = null; $("start").click(); await until(() => confirmGo !== null);   // Restart rep (not Continue)
+  check("Restart rep button: same course", lastCourse.drill.key === before && state === "running", `${before} -> ${lastCourse.drill.key}`);
+  $("stop").click(); await sleep(100);
 
   // 14. generated course + score over 12 shots prompt uses digits
   check("numWord 15", numWord(15) === "15");

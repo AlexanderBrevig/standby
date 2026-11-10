@@ -310,10 +310,10 @@
   <details class="card chrome" id="voiceHelp">
     <summary>Voice commands</summary>
     <table>
-      <tr><td>restart</td><td>Start a string (also “start”, “resume”); resumes a paused set</td></tr>
+      <tr><td>restart</td><td>Start a string; in Called mode or with a random start, the same course again (also “repeat”). Resumes a paused set.</td></tr>
       <tr><td>continue</td><td>After the briefing: get the make-ready command</td></tr>
-      <tr><td>repeat</td><td>During the briefing: read it again. After a string, or between reps: the same course again (Called mode, random start).</td></tr>
-      <tr><td>next</td><td>During the briefing: another course</td></tr>
+      <tr><td>repeat</td><td>During the briefing: read it again. Otherwise the same as “restart”: the same course again.</td></tr>
+      <tr><td>next</td><td>A new course: while idle, or during the briefing (also the Start button)</td></tr>
       <tr><td>not ready</td><td>After “Are you ready?”: hold</td></tr>
       <tr><td>stop</td><td>Between reps: pause the set</td></tr>
       <tr><td>alpha … mike</td><td>Score: one word per shot, “all alpha”, or counts (“three alpha one charlie”)</td></tr>
@@ -1382,7 +1382,8 @@ function speak(text) {
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const canListen = () => !!(SR && S.voice);
 const VOICE = {
-  start: /\b(re ?start|start|resume|continue)\b|\bmake ready\b/,
+  start: /\b(start|resume|continue)\b|\bmake ready\b/,   // a new course (or resume a paused set)
+  again: /\b(re ?start|repeat|again)\b/,                // the same course again
   hold: /\b(stop|hold|pause|wait|not ready|not yet)\b/,
   go: /\b(continue|proceed|go ahead|carry on)\b/,
   repeat: /\b(repeat|again)\b/,
@@ -1465,14 +1466,15 @@ function idleHint() {
   if (!SR) return "Tap Start. (No voice recognition in this browser.)";
   const say = S.voice ? "Say “restart” or tap Start" : "Tap Start";
   if (pending) return `Set paused. ${say} to continue.`;
-  if (S.voice && canRepeat()) return `${say} for a new course, or “repeat” for the same one.`;
+  if (S.voice && canRepeat()) return "Say “restart” for the same course, “next” for a new one, or tap Start.";
   return S.voice && S.handsFree ? `${say}. Say “setup …” to change the drill.` : say + ".";
 }
 // while idle: "restart" starts; "setup …" (whole phrases only, so final results) changes the drill
 function idleText(t) {
   if (state !== "idle" || isSetupSpeech(t)) return;
-  if (VOICE.repeat.test(t) && canRepeat()) startSession({ again: true });   // "repeat": the same course again
-  else if (VOICE.start.test(t)) startSession();
+  // "restart" / "repeat": the same course again; "next", "start" or the Start button: a new one
+  if (VOICE.again.test(t)) startSession({ again: true });
+  else if (VOICE.next.test(t) || VOICE.start.test(t)) startSession();
 }
 function idleFinal(alts) { const setup = alts.filter(isSetupSpeech); if (state === "idle" && setup.length) setupFlow(setup); }
 function idleListen() {
@@ -1638,16 +1640,16 @@ async function beginSet(opts = {}) {
   if (!pending && set.results.length > 1) await setSummary(set.results, mixed, alive);
   if (alive()) goIdle(keep);
 }
-// Restart (button while running, or "next" during the briefing): drop the current rep and start
-// again at once. An unfinished set keeps its place (and Called mode draws a new pattern), unless
-// its settings changed meanwhile.
-function restart() {
+// Restart (button while running): drop the current rep and shoot the same course again at once; a good
+// course is worth another go. "Next" in a briefing calls restart(false) for a new one. An unfinished set
+// keeps its place, unless its settings changed meanwhile.
+function restart(again = true) {
   if (state !== "running") return;
   const set = activeSet;
   abortRun();
   pending = set && set.rep < set.reps && set.sig === setSig() ? set : null;
   state = "idle";
-  if (!startSession()) goIdle(true);
+  if (!startSession({ again })) goIdle(true);
 }
 async function repPause(alive) {
   const secs = Math.max(2, Math.round(S.repInterval) || DEFAULTS.repInterval);
@@ -1657,7 +1659,7 @@ async function repPause(alive) {
   if (!alive()) return null;
   // "stop" pauses the set; "repeat" makes the next rep the same course
   let heard = null;
-  const stop = listen(t => { if (VOICE.hold.test(t)) heard = "hold"; else if (VOICE.repeat.test(t) && canRepeat()) heard = heard || "again"; });
+  const stop = listen(t => { if (VOICE.hold.test(t)) heard = "hold"; else if (VOICE.again.test(t) && canRepeat()) heard = heard || "again"; });
   const until = Date.now() + Math.max(0, secs * 1000 - (Date.now() - t0));
   while (heard !== "hold" && alive() && Date.now() < until) await sleep(50);
   stop();
@@ -1734,7 +1736,7 @@ async function confirmBriefing(brief, alive) {
       if (voiceOn) stop = listen(t => {
         if (VOICE.go.test(t)) go = true;
         else if (VOICE.repeat.test(t)) again = true;
-        else if (VOICE.next.test(t) && !skipping) { skipping = true; setTimeout(() => { if (alive()) restart(); }); }
+        else if (VOICE.next.test(t) && !skipping) { skipping = true; setTimeout(() => { if (alive()) restart(false); }); }
       });
       else autoAt = Date.now() + 4000;
     }
@@ -2226,11 +2228,11 @@ const TOUR = [
   {
     title: "Talk to it",
     body: `<div class="cmds">
-        <span class="say">restart</span><small>Start a string, or resume a paused set.</small>
+        <span class="say">restart</span><small>Start a string. In Called mode: the same course again.</small>
         <span class="say">not ready</span><small>Hold, after “Are you ready?”.</small>
         <span class="say">continue</span><small>After a briefing: go on to “make ready”.</small>
-        <span class="say">repeat</span><small>In a briefing: hear it again. After a string: the same course again.</small>
-        <span class="say">next</span><small>Another course instead.</small>
+        <span class="say">repeat</span><small>In a briefing: hear it again.</small>
+        <span class="say">next</span><small>A new course (or tap Start).</small>
         <span class="say">stop</span><small>Between reps: pause the set.</small>
       </div>
       <p class="muted">Voice commands use Chrome's speech recognition and need a network connection. The full list is under “Voice commands”.</p>`,
