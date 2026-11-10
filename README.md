@@ -15,7 +15,7 @@ Options: par time (second beep), early-start detection (sound before the beep), 
 
 ## Modes
 - **Course**: the flow above. An open string that ends on silence.
-- **Drill**: a fixed pattern of targets. It's briefed first ("From table. Paper, paper, steel. Say continue to proceed."). Say "continue" or tap Continue to get the make-ready command; "repeat" reads it again. This can be turned off in Settings. The string ends on the last expected shot (two low beeps) with no closing commands, so reps go quickly. Each gap gets a name: draw, split, transition, reload, movement.
+- **Drill**: a fixed pattern of targets. It's briefed first ("From table. Paper, paper, steel. Say continue to proceed."). Say "continue" or tap Continue to get the make-ready command; "repeat" reads it again. This can be turned off in Settings. Until the beep, the big display shows the course mnemonic for planning, e.g. `T P S P` (table start, paper, steel, paper). The string ends on the last expected shot (two low beeps) with no closing commands, so reps go quickly. Each gap gets a name: draw, split, transition, reload, movement.
 - **Called**: each rep picks a random pattern from a pool and briefs it with the start command every rep ("From table. Paper, steel. Make ready.").
 
 Patterns: `P` paper (2 shots), `S` steel (1 hit), `R` reload, `M` movement. The prefix is the number of targets and the suffix is shots per paper: `2P` two papers, `P1` one shot, `3P1` three papers one shot each, `5S` five plates. Presets include Bill drill `P6`, Blake `3P`, Reload `P R P` and El Presidente `3P R 3P`. Reload noise (magazine seating, slide release) is filtered out after the string by choosing the peaks that give the shortest splits and transitions.

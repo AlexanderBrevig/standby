@@ -23,7 +23,7 @@
     font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   main { max-width: 560px; margin: 0 auto; padding: 16px; }
   h1 { font-size: 1.1rem; margin: 0 0 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+  .card { container-type: inline-size; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
   #status { font-size: 1.6rem; font-weight: 700; min-height: 2.2rem; }
   #hint { color: var(--muted); min-height: 1.4rem; }
   #drillLine { font-family: ui-monospace, Menlo, monospace; color: var(--muted); font-size: .9rem; min-height: 1.2rem; }
@@ -230,9 +230,9 @@ const PRESETS = [
 const NUM = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
 const isEvent = kind => kind === "R" || kind === "M";
 const STARTS = {
-  holster: { name: "Holster", first: "draw", from: "From holster." },
-  ready: { name: "Low ready", first: "first shot", from: "From low ready." },
-  table: { name: "Table", first: "pickup", from: "From table." },
+  holster: { name: "Holster", first: "draw", from: "From holster.", mark: "H" },
+  ready: { name: "Low ready", first: "first shot", from: "From low ready.", mark: "L" },
+  table: { name: "Table", first: "pickup", from: "From table.", mark: "T" },
 };
 // nothing to load into a gun on the table
 const startCommand = start => start === "table" ? "Make ready" : S.command === "auto" ? "Load and make ready" : S.command;
@@ -295,7 +295,9 @@ function parsePattern(text) {
     (g.x > 3 ? `${NUM[g.x]} ${g.kind === "P" ? "paper" : "steel"}` : new Array(g.x).fill(g.kind === "P" ? "paper" : "steel").join(", ")) +
     (g.kind === "P" && g.shots !== 2 ? `, ${NUM[g.shots]} shot${g.shots > 1 ? "s" : ""}${g.x > 1 ? " each" : ""}` : "")
   ).join(", ") + ".";
-  return { key, call, shots, n: shots.length, loose: items.some(it => isEvent(it.kind)) };
+  // "P S P", "P P P R P P P", "P1 P1": every target, for the big display while planning
+  const marks = items.map(it => it.kind + (it.kind === "P" && it.shots !== 2 ? it.shots : "")).join(" ");
+  return { key, call, marks, shots, n: shots.length, loose: items.some(it => isEvent(it.kind)) };
 }
 
 function parsePool(text) {
@@ -472,7 +474,12 @@ function escapeHtml(t) { return t.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": 
 
 // ---------- UI ----------
 function setStatus(text, hint = "") { $("status").textContent = text; $("hint").textContent = hint; }
-function setBig(text) { $("big").textContent = text; }
+function setBig(text) { $("big").textContent = text; $("big").style.fontSize = ""; }
+// the course mnemonic ("T P S P") in the big display, shrunk to fit one line
+function setMnemonic(text) {
+  $("big").textContent = text;
+  $("big").style.fontSize = `min(4.2rem, ${(100 / (text.length * 0.65)).toFixed(2)}cqi)`;   // monospace: ~0.6em per character
+}
 function updateThresholdUi() {
   $("thrOut").textContent = S.threshold + " dB";
   $("meter").querySelector("b").style.left = levelPct(dbToAmp(S.threshold)) + "%";
@@ -732,7 +739,9 @@ async function repPause(alive) {
 
 // one string: commands, beep, shots, results. Returns a result, "hold" or "error".
 async function runString({ first, drill, start }, alive) {
-  setBig("0.00"); $("shots").textContent = "";
+  $("shots").textContent = "";
+  if (drill || start !== "holster") setMnemonic([STARTS[start].mark, drill && drill.marks].filter(Boolean).join(" "));
+  else setBig("0.00");
 
   // briefing: "From table. Paper, paper, steel. Make ready." The start is said when it isn't the
   // holster default, or always when random. Random starts and called patterns change every rep,
