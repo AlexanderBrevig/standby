@@ -68,15 +68,15 @@ A **Start** dropdown, separate from the pattern, applies in every mode: Holster 
 
 - It names the first gap: `draw` (holster), `first shot` (low ready), `pickup` (table).
 - Adaptive par is kept per pattern **and** start: the key is `P S` for holster (unchanged) and `P S @ready` / `P S @table` otherwise. A draw and a shot from ready differ by several tenths, so they mustn't share a par.
-- A start other than holster is called out with the start command ("Make ready. Low ready."). The start command setting is Automatic by default ("Make ready" for a table start, "Load and make ready" otherwise). Make ready / Load and make ready remain as fixed overrides, but a table start always says "Make ready". A saved "Make ready", the old default, migrates to Automatic.
+- **Briefing:** the start command comes with the course of fire: "From table. Paper, paper, steel. Make ready." / "Paper, paper, steel. Load and make ready." (holster isn't named unless the start is random). In Called mode the briefing leaves the pattern out, since the call before "Standby" is the point. The start command setting is Automatic by default ("Make ready" for a table start, "Load and make ready" otherwise). Make ready / Load and make ready remain as fixed overrides, but a table start always says "Make ready". A saved "Make ready", the old default, migrates to Automatic.
 - Random picks a start per rep, and every rep gets the full start command for it ("Load and make ready. Holster.", "Make ready. Gun on the table."), with the make-ready time to change position. The set summary then skips totals, since they don't compare.
 
 ## 3. Drill string flow
 
 ```
-[rep 1 only] Make ready → (prep time)
+[rep 1, or every rep with a random start] ["From table."] ["Paper, paper, steel."] Make ready → (prep time)
 Are you ready? → (not-ready window)
-[Called] "Paper. Steel."  → (call pause, default 1.5 s)
+[Called] "Paper, steel."  → (call pause, default 1.5 s)
 Standby → random delay → BEEP
 shots…   (labelled live: "draw 0.98 · split 0.24 · transition 0.31")
 Nth shot → grace window → END TONE
@@ -131,7 +131,7 @@ Settings: **Power factor** minor / major.
 
 - **Pool:** a list of patterns, one per line or separated by `|`. Default: `2S | P S | 2P | 2P S` (2, 3, 4 and 5 shots, all distinct, so a wrong pattern is always caught by the count).
 - Each rep picks a random entry, avoiding the same one twice in a row.
-- It's announced after the not-ready window, before "Standby": tokens read in order ("Paper. Steel. Reload. Paper."; `3P` → "three paper", `P1` → "paper, one shot", `3P1` → "three paper, one shot each").
+- It's announced after the not-ready window, before "Standby": targets read one by one ("paper, steel, reload, paper"; `3P` → "paper, paper, paper", `5S` → "five steel" (runs over three are grouped), `P1` → "paper, one shot", `3P1` → "paper, paper, paper, one shot each").
 - **Distinct counts:** the app can only check the shot count, not the order. If two pool entries have the same total, the editor warns that a wrong pattern of the same count can't be detected. This is allowed, but flagged.
 - If the shots heard ≠ the called count, the rep fails ("Called three, heard two").
 

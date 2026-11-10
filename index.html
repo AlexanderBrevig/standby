@@ -229,9 +229,9 @@ const PRESETS = [
 const NUM = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
 const isEvent = kind => kind === "R" || kind === "M";
 const STARTS = {
-  holster: { name: "Holster", first: "draw", say: "Holster." },
-  ready: { name: "Low ready", first: "first shot", say: "Low ready." },
-  table: { name: "Table", first: "pickup", say: "Gun on the table." },
+  holster: { name: "Holster", first: "draw", from: "From holster." },
+  ready: { name: "Low ready", first: "first shot", from: "From low ready." },
+  table: { name: "Table", first: "pickup", from: "From table." },
 };
 // nothing to load into a gun on the table
 const startCommand = start => start === "table" ? "Make ready" : S.command === "auto" ? "Load and make ready" : S.command;
@@ -289,10 +289,11 @@ function parsePattern(text) {
     else groups.push({ ...it, x: 1 });
   }
   const key = groups.map(g => (g.x > 1 ? g.x : "") + g.kind + (g.kind === "P" && g.shots !== 2 ? g.shots : "")).join(" ");
+  // "paper, paper, steel": targets one by one, runs of more than three grouped ("five steel")
   const call = groups.map(g => g.kind === "R" ? "reload" : g.kind === "M" ? "move" :
-    (g.x > 1 ? NUM[g.x] + " " : "") + (g.kind === "P" ? "paper" : "steel") +
+    (g.x > 3 ? `${NUM[g.x]} ${g.kind === "P" ? "paper" : "steel"}` : new Array(g.x).fill(g.kind === "P" ? "paper" : "steel").join(", ")) +
     (g.kind === "P" && g.shots !== 2 ? `, ${NUM[g.shots]} shot${g.shots > 1 ? "s" : ""}${g.x > 1 ? " each" : ""}` : "")
-  ).join(". ") + ".";
+  ).join(", ") + ".";
   return { key, call, shots, n: shots.length, loose: items.some(it => isEvent(it.kind)) };
 }
 
@@ -706,13 +707,16 @@ async function repPause(alive) {
 async function runString({ first, drill, start }, alive) {
   setBig("0.00"); $("shots").textContent = "";
 
-  // the start position is called out when it isn't the holster default; with random, every rep
-  // gets the full start command so there's time to change position
-  const sayStart = start !== "holster" || S.startPos === "random" ? STARTS[start].say : "";
+  // briefing: "From table. Paper, paper, steel. Make ready." The start is said when it isn't the
+  // holster default, or always when random; random gives every rep a briefing to change position.
+  // A called pattern is kept for the call before "Standby".
   if (first || S.startPos === "random") {
     const command = startCommand(start);
-    setStatus(command, sayStart ? STARTS[start].name : "Get into your start position.");
-    await speak(sayStart ? `${command}. ${sayStart}` : command);
+    const from = start !== "holster" || S.startPos === "random" ? STARTS[start].from : "";
+    const cof = drill && S.mode === "drill" ? cap(drill.call) : "";
+    const brief = [from, cof].filter(Boolean).join(" ");
+    setStatus(command, brief || "Get into your start position.");
+    await speak(brief ? `${brief} ${command}.` : command);
     await sleep(S.prepTime * 1000);
     if (!alive()) return null;
   }
