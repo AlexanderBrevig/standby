@@ -19,7 +19,7 @@ A pattern is a sequence of tokens separated by spaces (case-insensitive):
 | `R` | reload | 0 |
 | `M` | movement / position change | 0 |
 
-Prefix = number of targets, suffix = shots per paper. Why have a suffix at all: IPSC scores the best two hits per paper by default, so 2 is the right default. But a Written Stage Briefing can set a Virginia Count with a fixed number of rounds per target (typically one, e.g. strong/weak hand), and drills like the Bill drill put more than two shots on one paper. Steel takes no suffix: one hit.
+Prefix = number of targets, suffix = shots per paper. Why have a suffix at all: IPSC scores the best two hits per paper by default, so 2 is the right default. IPSC scoring is Comstock only (rule 9.2.1: unlimited shots, a *stipulated number of hits* per target scores). Rule 9.5.1 makes "best two hits" the default "unless otherwise specified in the written stage briefing", so a stage may stipulate one or three scoring hits per paper. It can't cap the shots fired (8.1.4; a fixed round count, "Virginia Count", is USPSA, not IPSC). So `P1` / `P3` mean the number of hits that score, which in dry fire is the number of shots you plan to fire. Drills like the Bill drill put more than two on one paper. Generated reloads always fall between two targets, which matches rule 1.1.5.2 for mandatory reloads (after the first target, before the last). Steel takes no suffix: it must fall (one hit). Steel takes no suffix: one hit.
 
 Rules: at least one target. `R` and `M` only between targets, never first or last, never two in a row. `x` and `n` are 1–12. `xP` expands to x separate targets, so the gaps between them are transitions. An invalid pattern disables Start and shows the error inline.
 
