@@ -20,7 +20,7 @@ Options: par time (second beep), early-start detection (sound before the beep), 
 
 Patterns: `P` paper (2 shots), `S` steel (1 hit), `R` reload, `M` movement. The prefix is the number of targets and the suffix is shots per paper: `2P` two papers, `P1` one shot, `3P1` three papers one shot each, `5S` five plates. Presets include Bill drill `P6`, Blake `3P`, Reload `P R P` and El Presidente `3P R 3P`. Reload noise (magazine seating, slide release) is filtered out after the string by choosing the peaks that give the shortest splits and transitions.
 
-**Start position:** Holster, Low ready, Table or Random. It names the first gap (draw, first shot, pickup) and keeps a separate adaptive par. A table start is always announced as plain "Make ready". Random calls out the start before each rep.
+**Start position:** Holster, Low ready, Table or Random. It names the first gap (draw, first shot, pickup) and keeps a separate adaptive par. A table start is always announced as plain "Make ready". With Random, every rep gets the full start command for its position.
 
 **Reps:** run a set of N reps with an interval between them. Say "stop" between reps to pause and "restart" to continue. A set summary is read out at the end.
 

@@ -69,7 +69,7 @@ A **Start** dropdown, separate from the pattern, applies in every mode: Holster 
 - It names the first gap: `draw` (holster), `first shot` (low ready), `pickup` (table).
 - Adaptive par is kept per pattern **and** start: the key is `P S` for holster (unchanged) and `P S @ready` / `P S @table` otherwise. A draw and a shot from ready differ by several tenths, so they mustn't share a par.
 - A start other than holster is called out with the start command ("Make ready. Low ready."). A table start always uses plain "Make ready", even when the setting is "Load and make ready".
-- Random picks a start per rep and calls it out before every "Are you ready?". The set summary then skips totals, since they don't compare.
+- Random picks a start per rep, and every rep gets the full start command for it ("Load and make ready. Holster.", "Make ready. Gun on the table."), with the make-ready time to change position. The set summary then skips totals, since they don't compare.
 
 ## 3. Drill string flow
 

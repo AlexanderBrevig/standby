@@ -699,18 +699,14 @@ async function repPause(alive) {
 async function runString({ first, drill, start }, alive) {
   setBig("0.00"); $("shots").textContent = "";
 
-  // the start position is called out when it isn't the holster default, and every rep when random
+  // the start position is called out when it isn't the holster default; with random, every rep
+  // gets the full start command so there's time to change position
   const sayStart = start !== "holster" || S.startPos === "random" ? STARTS[start].say : "";
-  if (first) {
+  if (first || S.startPos === "random") {
     const command = start === "table" ? "Make ready" : S.command;   // nothing to load into a gun on the table
     setStatus(command, sayStart ? STARTS[start].name : "Get into your start position.");
     await speak(sayStart ? `${command}. ${sayStart}` : command);
     await sleep(S.prepTime * 1000);
-    if (!alive()) return null;
-  } else if (S.startPos === "random") {
-    setStatus(STARTS[start].name, "Get into your start position.");
-    await speak(sayStart);
-    await sleep(Math.min(S.prepTime, 2) * 1000);
     if (!alive()) return null;
   }
 
