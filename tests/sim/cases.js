@@ -175,6 +175,24 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   // changed settings: no repeat
   applySettings({ startPos: "holster", mode: "drill" }); check("no repeat after settings change", !canRepeat());
 
+  // 22. mic sheet: room, three clicks, threshold between; Done goes back to idle; "Mic test" opens it as a meter
+  localStorage.removeItem("standby.calibrated"); applySettings({ threshold: DEFAULTS.threshold }); localStorage.removeItem("standby.calibrated");
+  check("uncalibrated at default", !isCalibrated());
+  await openCalib(true);
+  check("mic sheet open", $("calib").open && state === "test" && calib.phase === "room");
+  for (let k = 0; k < 40; k++) { calibPeak(0.01, ctx.currentTime); await sleep(50); }   // the room: -40 dB
+  check("room measured", calib.phase === "clicks", calib && calib.phase);
+  for (let k = 0; k < 3; k++) { calibPeak(0.3, ctx.currentTime); await sleep(400); calibPeak(0.01, ctx.currentTime); }   // clicks: about -10 dB
+  const want = Math.round(-40 + (ampDb(0.3) + 40) * 0.45);
+  check("calibrated threshold", S.threshold === want && $("threshold").value === String(want) && isCalibrated() && calib.phase === "done", S.threshold + " " + (calib && calib.phase));
+  testHit(ctx.currentTime); check("clicks counted after", /1<\/b> click heard/.test($("calibHits").innerHTML), $("calibHits").innerHTML);
+  $("calibDone").click(); await sleep(100);
+  check("mic sheet closes to idle", !$("calib").open && state === "idle", state);
+  $("test").click(); await sleep(100);
+  check("mic test opens the sheet as a meter", $("calib").open && calib.phase === "done" && new RegExp("Threshold " + want + " dB").test($("calibStatus").textContent), $("calibStatus").textContent);
+  $("calibClose").click(); await sleep(100);
+  applySettings({ threshold: DEFAULTS.threshold });
+
   // 14. generated course + score over 12 shots prompt uses digits
   check("numWord 15", numWord(15) === "15");
   check("no errors", !LOG.some(l => l.startsWith("ERROR") || l.startsWith("REJECT")));

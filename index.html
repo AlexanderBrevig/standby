@@ -100,8 +100,6 @@
   .meter > i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--face-ok); transition: width .05s linear; }
   .meter > b { position: absolute; top: -2px; bottom: -2px; width: 3px; background: var(--accent); }
   .meter.hit > i { background: var(--accent); }
-  #thrQuick { display: none; width: 100%; margin-top: 12px; accent-color: var(--accent); }
-  body[data-state="test"] #thrQuick { display: block; }
 
   /* score pad: the input is the hero while scoring */
   #scorepad { margin-top: 10px; display: grid; gap: 8px; }
@@ -199,16 +197,16 @@
   button.icon { flex: 0 0 auto; width: 40px; height: 40px; min-height: 40px; padding: 0; border-radius: 50%; font: 900 1.25rem/1 var(--font-display); }
   #help { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-size: 1.35rem; }
   button.ghost { background: none; border: 0; color: var(--face-muted); text-decoration: underline; text-underline-offset: 3px; min-height: 40px; }
-  #tour { width: min(520px, 100vw); --face-ink: #f1f4f6; max-height: 92dvh; margin: auto auto 0; padding: 18px 18px max(18px, env(safe-area-inset-bottom));
+  #tour, #calib { width: min(520px, 100vw); --face-ink: #f1f4f6; max-height: 92dvh; margin: auto auto 0; padding: 18px 18px max(18px, env(safe-area-inset-bottom));
     border: 1px solid var(--line); border-radius: 22px 22px 0 0; background: var(--surface); color: var(--ink); overflow: auto; }
-  @media (min-width: 600px) { #tour { margin: auto; border-radius: 22px; } }
-  #tour::backdrop { background: rgba(5, 7, 10, .6); backdrop-filter: blur(3px); }
-  #tour[open] { animation: rise .22s ease-out; }
+  @media (min-width: 600px) { #tour, #calib { margin: auto; border-radius: 22px; } }
+  #tour::backdrop, #calib::backdrop { background: rgba(5, 7, 10, .6); backdrop-filter: blur(3px); }
+  #tour[open], #calib[open] { animation: rise .22s ease-out; }
   @keyframes rise { from { transform: translateY(24px); opacity: .4; } to { transform: none; opacity: 1; } }
-  #tourTitle:focus { outline: none; }
+  #tourTitle:focus, #calibTitle:focus { outline: none; }
   .tour-top { display: flex; align-items: center; justify-content: space-between; }
   .tour-step { font: 700 .75rem var(--font-body); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
-  #tourTitle { font: 900 2rem/1.05 var(--font-display); text-transform: none; letter-spacing: .01em; color: var(--ink); margin: 6px 0 10px; text-wrap: balance; }
+  #tourTitle, #calibTitle { font: 900 2rem/1.05 var(--font-display); text-transform: none; letter-spacing: .01em; color: var(--ink); margin: 6px 0 10px; text-wrap: balance; }
   #tourBody { display: grid; gap: 12px; min-height: 260px; align-content: start; }
   #tourBody p { margin: 0; }
   .tour-safety { padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 700; }
@@ -237,10 +235,13 @@
   .tour-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
   .tour-dots i.on { background: var(--accent); width: 22px; border-radius: 4px; }
   .tour-nav button { min-height: 52px; }
-  /* mic test: the meter and the threshold are the point */
-  body[data-state="test"] #big { display: none; }
-  body[data-state="test"] .meter { height: 28px; border-radius: 8px; }
-  body[data-state="test"] #shots { display: block; text-align: center; font-size: 1.4rem; }
+  /* the mic sheet: meter, clicks heard and the threshold together, wherever you are on the page */
+  .calib-face { background: radial-gradient(120% 90% at 50% 0%, var(--face-2), var(--face)); border: 1px solid var(--face-line); border-radius: 16px; padding: 16px; display: grid; gap: 12px; }
+  #calibStatus { font: 800 1.5rem/1.1 var(--font-display); color: var(--face-ink); text-wrap: balance; }
+  .calib-face .meter { height: 30px; border-radius: 9px; margin: 0; }
+  #calibHits { font: 400 1rem var(--font-body); color: var(--face-muted); min-height: 1.4em; }
+  #calibHits b { font: 700 1.05rem var(--font-mono); font-variant-numeric: tabular-nums; color: var(--face-ink); }
+  #calib label { border-top: 0; padding-bottom: 0; }
 
   /* range view: while a string runs (or setup reads back), the phone is metres away and only the face matters */
   body.running { --big-max: min(36cqi, 42dvh); }
@@ -301,7 +302,6 @@
       </div>
     </div>
     <div class="meter" id="meter" aria-hidden="true"><i></i><b></b></div>
-    <input type="range" id="thrQuick" min="-50" max="-1" step="1" aria-label="Sensitivity threshold">
   </div>
 
   <div class="row controls">
@@ -415,6 +415,27 @@
   <p class="foot chrome">Times run from the beep as the mic hears it, so speaker/mic latency cancels out. Saying “bang” adds your voice reaction time: use the click for numbers. <a href="https://github.com/AlexanderBrevig/standby">Source</a></p>
 </main>
 
+<dialog id="calib" aria-labelledby="calibTitle">
+  <div class="tour-top">
+    <span class="tour-step">Microphone</span>
+    <button class="icon" id="calibClose" aria-label="Close">✕</button>
+  </div>
+  <h2 id="calibTitle" tabindex="-1" autofocus>Tune the mic</h2>
+  <p id="calibText" class="muted">Put the phone where it will be when you train. Standby listens to the room first, then for your trigger click.</p>
+  <div class="calib-face">
+    <div id="calibStatus" aria-live="polite">Listening to the room…</div>
+    <div class="meter" id="calibMeter" aria-hidden="true"><i></i><b></b></div>
+    <div id="calibHits" aria-live="polite"></div>
+  </div>
+  <label>Threshold <output id="calibThrOut"></output>
+    <input type="range" id="calibThr" min="-50" max="-1" step="1">
+    <small>A click must reach past the orange line. Room noise should stay below it.</small></label>
+  <div class="row tour-nav">
+    <button id="calibAgain">Listen again</button>
+    <button class="primary" id="calibDone">Done</button>
+  </div>
+</dialog>
+
 <dialog id="tour" aria-labelledby="tourTitle">
   <div class="tour-top">
     <span class="tour-step" id="tourStep"></span>
@@ -492,6 +513,7 @@ for (const key of Object.keys(DEFAULTS)) {
     save("standby.settings", S);
     applyDetector();
     if (SET_KEYS.includes(key)) pending = null;
+    if (key === "threshold") save("standby.calibrated", true);
     if (key === "pattern") syncPreset();
     refreshDrillUi();
     if (key === "voice" && state === "idle") { idleListen(); setStatus(statusText, idleHint()); }
@@ -502,8 +524,6 @@ for (const key of Object.keys(DEFAULTS)) {
 // live preview while the slider is dragged; "change" above saves when it's let go
 $("threshold").addEventListener("input", () => { S.threshold = parseFloat($("threshold").value); applyDetector(); });
 // the same threshold on the face during the mic test, next to the meter it's set against
-$("thrQuick").addEventListener("input", () => { $("threshold").value = $("thrQuick").value; $("threshold").dispatchEvent(new Event("input")); });
-$("thrQuick").addEventListener("change", () => $("threshold").dispatchEvent(new Event("change")));
 
 // ---------- constants ----------
 const BEEP = 0.3, PAR_BEEP = 0.2;   // s
@@ -1189,15 +1209,17 @@ function gapsHtml(hits, labels) {
 function flashBeep() { for (const b of document.querySelectorAll(".beep")) { b.classList.remove("fire"); void b.offsetWidth; b.classList.add("fire"); } }
 function updateThresholdUi() {
   $("thrOut").textContent = S.threshold + " dB";
-  $("thrQuick").value = S.threshold;
-  $("meter").querySelector("b").style.left = levelPct(dbToAmp(S.threshold)) + "%";
+  $("calibThr").value = S.threshold;
+  $("calibThrOut").textContent = S.threshold + " dB";
+  for (const m of document.querySelectorAll(".meter")) m.querySelector("b").style.left = levelPct(dbToAmp(S.threshold)) + "%";
 }
 function levelPct(amp) { const db = 20 * Math.log10(Math.max(amp, 1e-5)); return Math.min(100, Math.max(0, (db + 60) / 60 * 100)); }
 let meterHitTimer;
 function flashHit() {
-  $("meter").classList.add("hit");
+  const meters = document.querySelectorAll(".meter");
+  meters.forEach(m => m.classList.add("hit"));
   clearTimeout(meterHitTimer);
-  meterHitTimer = setTimeout(() => $("meter").classList.remove("hit"), 120);
+  meterHitTimer = setTimeout(() => meters.forEach(m => m.classList.remove("hit")), 120);
 }
 
 // ---------- audio ----------
@@ -1267,7 +1289,8 @@ function openMic() {
       detector.connect(sink).connect(ctx.destination);
       detector.port.onmessage = e => {
         if (e.data.peak != null) {
-          $("meter").querySelector("i").style.width = levelPct(e.data.peak) + "%";
+          for (const m of document.querySelectorAll(".meter")) m.querySelector("i").style.width = levelPct(e.data.peak) + "%";
+          if (state === "test") calibPeak(e.data.peak, e.data.t);
           if (e.data.peak >= dbToAmp(S.threshold)) lastLoud = e.data.t;
         }
         if (e.data.hit != null) onHit(e.data.hit);
@@ -1282,7 +1305,7 @@ function closeMic() {
   try { source.disconnect(); detector.disconnect(); sink.disconnect(); filters.forEach(f => f.disconnect()); } catch {}
   stream.getTracks().forEach(t => t.stop());
   stream = source = detector = sink = null; filters = [];
-  $("meter").querySelector("i").style.width = "0";
+  for (const m of document.querySelectorAll(".meter")) m.querySelector("i").style.width = "0";
 }
 function applyDetector() {
   updateThresholdUi();
@@ -2050,23 +2073,83 @@ async function setSummary(results, mixed, alive) {
   if (S.speakResults && alive()) await speak(parts.join(" "));
 }
 
-// ---------- mic test ----------
-let testLast = null, testCount = 0;
+// ---------- mic sheet: test and calibration ----------
+// Listens to the room (~1.5 s) for its noise floor, then for three trigger clicks, and sets the threshold
+// between the two. Opens by itself while the threshold is uncalibrated; "Mic test" opens it any time.
+const CALIB_CLICKS = 3, CALIB_ROOM = 1.5;   // clicks to hear, seconds of room
+let calib = null;   // { phase: "room" | "clicks" | "done", noise: [dB], clicks: [dB], t0, lastClick, heard, hits, lastHit }
+const isCalibrated = () => load("standby.calibrated", false) || S.threshold !== DEFAULTS.threshold;
+const ampDb = a => 20 * Math.log10(Math.max(a, 1e-5));
+function calibSay(status, hits = "") { $("calibStatus").textContent = status; $("calibHits").innerHTML = hits; }
+function calibListen() {
+  calib = { phase: "room", noise: [], clicks: [], t0: ctx.currentTime, lastClick: 0, heard: false, hits: 0, lastHit: null };
+  calibSay("Listening to the room… keep still.");
+  $("calibDone").textContent = "Skip";
+}
+// level reports from the shot input, about every 50 ms
+function calibPeak(peak, t) {
+  if (!calib) return;
+  calib.heard = true;
+  const db = ampDb(peak);
+  if (calib.phase === "room") {
+    calib.noise.push(db);
+    if (t - calib.t0 >= CALIB_ROOM) { calib.phase = "clicks"; calibSay(`Now dry fire ${numWord(CALIB_CLICKS)} times.`, `Room: <b>${Math.round(median(calib.noise))} dB</b>`); }
+  } else if (calib.phase === "clicks") {
+    const floor = median(calib.noise);
+    if (db > floor + 12 && t - calib.lastClick > 0.25) {
+      calib.clicks.push(db); calib.lastClick = t;
+      const n = calib.clicks.length;
+      calibSay(n < CALIB_CLICKS ? `Click ${n} of ${CALIB_CLICKS}. Again.` : "Got it.",
+        `Room <b>${Math.round(floor)} dB</b> · clicks ${calib.clicks.map(c => `<b>${Math.round(c)}</b>`).join(" ")} dB`);
+      if (n >= CALIB_CLICKS) calibFinish();
+    }
+  }
+}
+function calibFinish() {
+  const floor = median(calib.noise), quietest = Math.min(...calib.clicks);
+  // between the room and the quietest click, a little nearer the room so softer clicks still count
+  const thr = Math.max(-50, Math.min(-3, Math.round(floor + (quietest - floor) * 0.45)));
+  $("threshold").value = thr;
+  $("threshold").dispatchEvent(new Event("change"));
+  save("standby.calibrated", true);
+  calib.phase = "done";
+  const close = quietest - floor < 18 ? " The clicks are only a little louder than the room: put the phone closer if shots get missed." : "";
+  calibSay(`Threshold set to ${thr} dB.`, `Every click should now flash the meter orange.${close}`);
+  $("calibDone").textContent = "Done";
+}
+// the detector's hits while the sheet is open
 function testHit(t) {
-  testCount++;
-  $("shots").textContent = testCount + " hits" + (testLast != null ? " · last gap " + fmt(t - testLast) : "");
-  testLast = t;
+  if (!calib || calib.phase !== "done") return;
+  calib.hits++;
+  calibSay(`Threshold ${S.threshold} dB`, `<b>${calib.hits}</b> ${plural(calib.hits, "click")} heard${calib.lastHit != null ? ` · last gap <b>${fmt(t - calib.lastHit)}</b>` : ""}`);
+  calib.lastHit = t;
 }
-async function toggleTest() {
-  if (state === "test") { goIdle(); return; }
-  if (state !== "idle") return;
+async function openCalib(listenFirst) {
+  if (state !== "idle" || !ctx) return;
   stopListening(); stopListening = () => {};
-  state = "test"; testLast = null; testCount = 0;
+  state = "test";
   renderButtons();
-  try { await openMic(); } catch (err) { setStatus("Microphone unavailable", String(err && err.message || err)); goIdle(true); return; }
-  setStatus("Mic test", "Dry-fire clicks should flash the meter; room noise should not. Adjust the threshold.");
-  $("shots").textContent = "0 hits";
+  $("calib").showModal();
+  if (listenFirst) calibListen();
+  else { calib = { phase: "done", hits: 0, lastHit: null }; calibSay(`Threshold ${S.threshold} dB`, "Dry fire: every click should flash the meter orange."); $("calibDone").textContent = "Done"; }
+  try { await openMic(); } catch (err) { calibSay("Can't use the microphone.", escapeHtml(String(err && err.message || err))); return; }
+  // no level at all after a while: the mic isn't delivering sound
+  setTimeout(() => { if (calib && calib.phase !== "done" && !calib.heard && $("calib").open && listenFirst) calibSay("No sound from the microphone.", "Check that the browser may use it, then tap Listen again."); }, 2500);
 }
+// closing (Done, ✕, or Escape via the close event): back to idle at once, not on the asynchronous event
+function closeCalib() {
+  if (calib && calib.phase !== "done") save("standby.calibrated", true);   // skipped: don't ask again; "Mic test" is there
+  calib = null;
+  if ($("calib").open) $("calib").close();
+  if (state === "test") goIdle();
+  if (tourAfterCalib) { tourAfterCalib = false; openTour(); }
+}
+$("calib").addEventListener("close", () => { if (!$("calib").open) closeCalib(); });   // a late event after a reopen is stale
+$("calibDone").addEventListener("click", closeCalib);
+$("calibClose").addEventListener("click", closeCalib);
+$("calibAgain").addEventListener("click", () => { if (ctx) calibListen(); });
+$("calibThr").addEventListener("input", () => { $("threshold").value = $("calibThr").value; $("threshold").dispatchEvent(new Event("input")); });
+$("calibThr").addEventListener("change", () => { $("threshold").dispatchEvent(new Event("change")); save("standby.calibrated", true); });
 
 // ---------- log ----------
 const expanded = new Set();
@@ -2137,13 +2220,13 @@ const TOUR = [
   },
   {
     title: "Tune the mic",
-    body: `<p>The timer hears a shot as any sound louder than the threshold. Set it once for your room and your gun:</p>
+    body: `<p>The timer hears a shot as any sound louder than the threshold. The first time, Standby sets it for you:</p>
       <ol class="tl">
-        <li><span class="n">1</span><b>Open the mic test</b><small>Under “Detector &amp; timing”.</small></li>
-        <li><span class="n">2</span><b>Dry fire a few times</b><small>Each click should flash the meter orange.</small></li>
-        <li><span class="n">3</span><b>Move the threshold</b><small>Just above room noise, just below the click.</small></li>
+        <li><span class="n">1</span><b>It listens to the room</b><small>A second or two: keep still.</small></li>
+        <li><span class="n">2</span><b>You dry fire three times</b><small>Standby hears how loud your click is.</small></li>
+        <li><span class="n">3</span><b>It sets the threshold</b><small>Between the room and your click. Fine-tune with the slider.</small></li>
       </ol>
-      <p class="muted">Times run from the beep as the mic hears it, so speaker and mic delay cancel out. Use the trigger click, not your voice, for numbers worth logging.</p>
+      <p class="muted">Moved the phone or changed gun? Run it again with “Mic test” under “Detector &amp; timing”. Times run from the beep as the mic hears it, so speaker and mic delay cancel out.</p>
       <div class="tour-actions"><button data-act="mictest">Open the mic test</button></div>`,
   },
   {
@@ -2211,6 +2294,7 @@ function closeTour() {
   if ($("tour").open) $("tour").close();
 }
 $("tour").addEventListener("close", () => {
+  if ($("tour").open) return;   // reopened meanwhile: this event is stale
   if ("speechSynthesis" in window) speechSynthesis.cancel();
   save("standby.toured", true);
   if (state === "idle") { idleListen(); if (statusText === "Idle") $("hint").textContent = idleHint(); }
@@ -2241,7 +2325,7 @@ $("tourBody").addEventListener("click", async e => {
     closeTour();
     $("test").closest("details").open = true;
     $("test").scrollIntoView({ block: "center" });
-    if (state === "idle") toggleTest();
+    if (state === "idle") openCalib(!isCalibrated());
   }
   if (act === "doubles") {
     applySettings({ mode: "drill", pattern: "P", reps: 5 });
@@ -2263,9 +2347,11 @@ function ensureAudio() {
   if ("speechSynthesis" in window) speechSynthesis.speak(new SpeechSynthesisUtterance(""));   // unlock speech on mobile
   keepAwake();
   if (state === "idle" && statusText === "Idle") $("hint").textContent = idleHint();
+  if (state === "idle" && !isCalibrated() && !$("overlay")) openCalib(true);   // a returning user who never tuned the mic
 }
 document.addEventListener("pointerdown", ensureAudio, { capture: true });
 document.addEventListener("keydown", ensureAudio, { capture: true });
+let tourAfterCalib = false;   // "take the tour" on the start screen: after tuning the mic
 async function enable(tour) {
   ensureAudio();
   await ctx.resume().catch(() => {});
@@ -2275,7 +2361,8 @@ async function enable(tour) {
   $("overlay").remove();
   keepAwake();
   goIdle();
-  if (tour) openTour();
+  if (!isCalibrated()) { tourAfterCalib = tour; openCalib(true); }
+  else if (tour) openTour();
   else if (!load("standby.toured", false)) setStatus("Idle", "New here? Tap ? for a one-minute tour.");
 }
 $("enable").addEventListener("click", () => enable(false));
@@ -2293,7 +2380,7 @@ $("stop").addEventListener("click", () => {
   goIdle(true);
   $("hint").textContent = idleHint();
 });
-$("test").addEventListener("click", toggleTest);
+$("test").addEventListener("click", () => openCalib(false));
 $("clearLog").addEventListener("click", () => { if (confirm("Clear the log?")) { save("standby.log", []); renderLog(); } });
 syncPreset();
 updateThresholdUi();
