@@ -362,7 +362,6 @@
       <small>Names the first gap (draw, first shot, pickup) and keeps a separate par. Random picks one per rep and calls it out.</small></div>
     <div data-modes="drill called">
       <label>Reps <input type="number" id="reps" min="1" max="50" step="1"></label>
-      <label data-reps>Rep interval (s) <input type="number" id="repInterval" min="2" max="60" step="1"></label>
     </div>
     <div class="field"><span class="field-label" id="parMode-label">Par</span><select id="parMode" data-seg aria-labelledby="parMode-label" hidden><option value="off">Off</option><option value="fixed">Fixed</option><option value="adaptive">Adaptive</option></select>
       <small id="parHelp"></small></div>
@@ -397,7 +396,8 @@
         <small>Shots are sound peaks above this level (dBFS). Use the mic test: set it just above room noise, below a shot.</small></label>
       <div class="row"><button id="test">Mic test</button></div>
       <label>Echo / min split (s) <input type="number" id="refractory" min="0.02" max="0.5" step="0.01"></label>
-      <label>Make-ready time (s) <input type="number" id="prepTime" min="0" max="30" step="0.5"></label>
+      <label>Make-ready time (s) <input type="number" id="prepTime" min="0" max="30" step="0.5">
+        <small>Time to get into position after “make ready”, and between reps without a briefing.</small></label>
       <label>“Not ready” window (s) <input type="number" id="readyWindow" min="0" max="10" step="0.5"></label>
       <label>Standby delay min (s) <input type="number" id="delayMin" min="0.5" max="10" step="0.1"></label>
       <label>Standby delay max (s) <input type="number" id="delayMax" min="0.5" max="10" step="0.1"></label>
@@ -486,7 +486,7 @@ const DEFAULTS = {
   early: true, voice: true, handsFree: true, confirm: true, closing: true, speakResults: true,
   mode: "course", startPos: "holster", pattern: "P S", pool: POOL,
   calledFrom: "pool", targets: "5P 3S", courseMin: 3, courseMax: 6, reloadChance: 20, moveChance: 30,
-  reps: 1, repInterval: 5, parMode: "off", parStep: 0.05, score: false, powerFactor: "minor",
+  reps: 1, parMode: "off", parStep: 0.05, score: false, powerFactor: "minor",
 };
 // settings that change what a paused set would shoot: changing one drops the pause
 const SET_KEYS = ["mode", "startPos", "pattern", "pool", "calledFrom", "targets", "courseMin", "courseMax", "reloadChance", "moveChance", "reps"];
@@ -861,7 +861,6 @@ function refreshDrillUi() {
   for (const el of document.querySelectorAll("[data-from]")) el.hidden = el.dataset.from !== S.calledFrom;
   for (const el of document.querySelectorAll("[data-par]")) el.hidden = el.dataset.par !== S.parMode;
   for (const el of document.querySelectorAll("[data-score]")) el.hidden = !S.score;
-  for (const el of document.querySelectorAll("[data-reps]")) el.hidden = !(S.reps > 1);
   $("modeHelp").textContent = MODE_HELP[S.mode];
   const adaptive = $("parMode").querySelector("[value=adaptive]");
   adaptive.textContent = S.mode === "course" ? "Adaptive (Drill/Called only)" : "Adaptive";
@@ -922,7 +921,7 @@ function drillLine(drill, rep, reps, start) {
 // order; only what's said changes; words that aren't understood are reported, never guessed.
 const SETUP_TRIGGER = /^\s*(setup|set up|set-up)\b/i;
 const SETUP_KEYS = ["mode", "pattern", "calledFrom", "targets", "courseMin", "courseMax", "reloadChance", "moveChance",
-  "startPos", "reps", "repInterval", "parMode", "par", "parStep", "score", "powerFactor"];   // what a named setup stores
+  "startPos", "reps", "parMode", "par", "parStep", "score", "powerFactor"];   // what a named setup stores
 const SETUP_NUMBERS = { zero: 0, one: 1, won: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
   eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, twenty: 20, thirty: 30, forty: 40, fifty: 50 };
 // as speech recognition writes them; only where a number is expected
@@ -1512,6 +1511,7 @@ const isSetupSpeech = t => S.handsFree && canListen() && (SETUP_TRIGGER.test(t.t
 
 function applySettings(changes) {
   for (const [key, value] of Object.entries(changes)) {
+    if (!(key in DEFAULTS)) continue;   // a retired setting in an old saved setup
     S[key] = value;
     const el = $(key);
     if (el.type === "checkbox") el.checked = value; else el.value = value;
@@ -1662,7 +1662,8 @@ function restart(course = currentCourse) {
   if (!startSession({ course })) goIdle(true);
 }
 async function repPause(alive) {
-  const secs = Math.max(2, Math.round(S.repInterval) || DEFAULTS.repInterval);
+  // time to reset between reps (reholster, back to the spot): the same as the make-ready time
+  const secs = Math.max(2, Math.round(S.prepTime) || DEFAULTS.prepTime);
   setStatus(`Next in ${secs}`, canListen() ? "Say “stop” to pause the set." : "");
   const t0 = Date.now();
   await speak(`Next in ${secs}.`);

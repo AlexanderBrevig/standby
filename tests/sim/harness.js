@@ -33,7 +33,7 @@ setInterval(() => {
   }
 }, 20);
 const until = async (cond, ms = 60000) => { const end = performance.now() + ms; while (!cond() && performance.now() < end) await sleep(20); return cond(); };
-const base = { confirm: false, readyWindow: 0, prepTime: 0.2, delayMin: 0.5, delayMax: 0.5, repInterval: 2, silence: 2, maxWait: 3,
+const base = { confirm: false, readyWindow: 0, prepTime: 0.2, delayMin: 0.5, delayMax: 0.5, silence: 2, maxWait: 3,
   score: false, closing: false, parMode: "off", speakResults: true, startPos: "holster", voice: true, reps: 1, };
 function setup(opts) { Object.assign(S, base, opts); refreshDrillUi(); }
 const lastLog = () => load("standby.log", [])[0];

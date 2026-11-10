@@ -59,7 +59,7 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   check("stop during pause clears it", pending === null && state === "idle" && $("start").textContent === "Start", `${JSON.stringify(pending)} ${state} ${$("start").textContent}`);
 
   // 10. restart during the final set summary starts a new set, not the summary again
-  setup({ mode: "drill", pattern: "P1", reps: 2, repInterval: 2 }); SAID.length = 0; rep = 0; PLAN = () => [1.0];
+  setup({ mode: "drill", pattern: "P1", reps: 2 }); SAID.length = 0; rep = 0; PLAN = () => [1.0];
   startSession();
   await until(() => SAID.some(t => t.startsWith("Set done")), 30000);
   $("start").click();   // Restart rep during the summary
@@ -252,6 +252,10 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   setup({ mode: "drill", pattern: "P1", startPos: "holster", confirm: true, reps: 2 }); SAID.length = 0; rep = 0; REPLIES = [[/Say continue/, "continue"]]; PLAN = () => [1.0];
   startSession(); await until(() => state === "idle", 60000);
   check("fixed drill keeps the countdown", SAID.some(t => /^Next in/.test(t)), SAID.join(" | "));
+
+  // 27. a saved setup from before the rep interval was retired still loads
+  applySettings({ repInterval: 5, reps: 2 }); check("retired setting ignored", S.reps === 2 && !("repInterval" in S) && !LOG.some(l => /^(ERROR|REJECT)/.test(l)));
+  applySettings({ reps: 1 });
 
   // 14. generated course + score over 12 shots prompt uses digits
   check("numWord 15", numWord(15) === "15");

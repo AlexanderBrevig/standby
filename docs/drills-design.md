@@ -88,7 +88,7 @@ spoken summary (time, HF, par result)
 - **Too few shots:** if fewer than N peaks arrive, the string ends on the existing silence timeout. The summary says "4 of 5 shots heard". The rep is logged as incomplete and is not scored. It leaves adaptive par unchanged: a click the mic missed is not the shooter's fault.
 - **Extra shots** inside the grace window are resolved by §4 and flagged ("1 extra sound ignored").
 - **No closing commands** in Drill/Called mode. The gun isn't being unloaded between reps. The session as a whole still starts with Make ready.
-- **Reps:** set size N (default 1 = single string) and rep interval (default 5 s). Saying "stop" or "hold" at any point pauses the set. "Restart" resumes it.
+- **Reps:** set size N (default 1 = single string). Between reps without a briefing there is a short "Next in N" pause, N being the make-ready time (there used to be a separate rep interval setting); when every rep opens with a briefing to confirm, the briefing is the pause. Saying "stop" or "hold" at any point pauses the set. "Restart" resumes it.
 - **Restart:** the Start button is always clickable. While a string runs it reads **Restart**: the current rep is dropped and a new one starts at once (Called mode draws a new pattern, a set keeps its place). During the briefing it reads **Continue**.
 
 ## 4. Extra sounds and reloads
@@ -177,7 +177,7 @@ Changing the drill without touching the phone. While idle, a transcript starting
 ## 9. Settings changes
 
 Grouped in the Settings card:
-- **Drill:** Mode, Start, Pattern (preset + text), Pool (Called), Reps, Rep interval
+- **Drill:** Mode, Start, Pattern (preset + text), Pool (Called), Reps
 - **Par:** Off / Fixed (value) / Adaptive (step), with a "Reset adaptive par" button
 - **Scoring:** Score after string, Power factor
 - Existing timing/detector settings unchanged. "End after silence" applies to Course mode and to incomplete drill strings.
