@@ -188,8 +188,6 @@
 
   <div class="card chrome">
     <h2>Range commands &amp; voice</h2>
-    <label>Start command <select id="command"><option value="auto">Automatic</option><option>Make ready</option><option>Load and make ready</option></select>
-      <small>Automatic: “Make ready” for a table start, “Load and make ready” otherwise. A table start is always “Make ready”.</small></label>
     <label>Voice commands <input type="checkbox" id="voice">
       <small id="voiceNote">Listen for “restart”, “continue”, “not ready”, scores …</small></label>
     <label>Wait for “continue” after the briefing <input type="checkbox" id="confirm">
@@ -253,7 +251,7 @@ function escapeHtml(t) { return String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;
 // the default Called list: enough variety to show what patterns can do
 const POOL = ["P S", "P S P", "S P S P", "2P S", "P 2S P", "3S P", "4P", "2P S 2P", "P S R P S", "2P R 2P", "S 3P S", "P1 P1 S S"].join("\n");
 const DEFAULTS = {
-  threshold: -18, refractory: 0.08, command: "auto", prepTime: 3, readyWindow: 3,
+  threshold: -18, refractory: 0.08, prepTime: 3, readyWindow: 3,
   delayMin: 1, delayMax: 4, par: 2, silence: 5, maxWait: 10,
   early: true, voice: true, confirm: true, closing: true, speakResults: true,
   mode: "course", startPos: "holster", pattern: "P S", pool: POOL,
@@ -266,7 +264,7 @@ const SET_KEYS = ["mode", "startPos", "pattern", "pool", "calledFrom", "targets"
 const MIGRATIONS = [
   s => { if (s.silence === 3) s.silence = DEFAULTS.silence; },                    // the old default ended strings too soon
   (s, stored) => { if (stored.par > 0) s.parMode = "fixed"; else s.par = DEFAULTS.par; },   // par 0 used to mean off
-  s => { if (s.command === "Make ready") s.command = "auto"; },                   // the start command follows the start position
+  () => {},                                                                        // (the start command setting, since removed)
   s => { if (s.pool === "2S | P S | 2P | 2P S") s.pool = POOL; },                 // a larger default list; a user's own is kept
 ];
 const VERSION = MIGRATIONS.length + 1;
@@ -326,7 +324,7 @@ const STARTS = {
   table: { name: "Table", first: "pickup", from: "From table.", mark: "T" },
 };
 // nothing to load into a gun on the table
-const startCommand = start => start === "table" ? "Make ready" : S.command === "auto" ? "Load and make ready" : S.command;
+const startCommand = start => start === "table" ? "Make ready" : "Load and make ready";
 function pickStart(rnd = Math.random) {
   const keys = Object.keys(STARTS);
   return S.startPos === "random" ? keys[Math.floor(rnd() * keys.length)] : STARTS[S.startPos] ? S.startPos : "holster";
@@ -1518,6 +1516,7 @@ function selfTest() {
   throws("S2", () => parsePattern("S2")); throws("R first", () => parsePattern("R P"));
   throws("ends R", () => parsePattern("P R")); throws("R M", () => parsePattern("P R M P"));
   throws("13P", () => parsePattern("13P")); throws("junk", () => parsePattern("P X"));
+  eq("start command", ["holster", "ready", "table"].map(startCommand), ["Load and make ready", "Load and make ready", "Make ready"]);
   eq("pool default", parsePool(POOL).length, 12);
   eq("targets", parseTargets("5P 3S"), { P: 5, S: 3 });
   // generated courses stay within the targets and limits

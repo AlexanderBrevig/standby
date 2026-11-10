@@ -22,7 +22,7 @@ While a string runs, the page switches to a range view: settings hidden, the sta
 
 Patterns: `P` paper (2 shots), `S` steel (1 hit), `R` reload, `M` movement. The prefix is the number of targets and the suffix is shots per paper: `2P` two papers, `P1` one shot, `3P1` three papers one shot each, `5S` five plates. Presets include Bill drill `P6`, Blake `3P`, Reload `P R P` and El Presidente `3P R 3P`. Reload noise (magazine seating, slide release) is filtered out after the string by choosing the peaks that give the shortest splits and transitions.
 
-**Start position:** Holster, Low ready, Table or Random. It names the first gap (draw, first shot, pickup) and keeps a separate adaptive par. The start command (Settings) is Automatic by default: "Make ready" for a table start, "Load and make ready" otherwise. A table start is always "Make ready". With Random, every rep gets the full start command for its position.
+**Start position:** Holster, Low ready, Table or Random. It names the first gap (draw, first shot, pickup) and keeps a separate adaptive par. The start command follows it: "Make ready" for a table start, "Load and make ready" otherwise. With Random, every rep gets the full start command for its position.
 
 **Reps:** run a set of N reps with an interval between them. Say "stop" between reps to pause and "restart" to continue. A set summary is read out at the end. The Start button is always live: while a string runs it reads Restart and starts a fresh rep at once.
 
