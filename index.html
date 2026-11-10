@@ -115,6 +115,8 @@
       <label>Call pause (s) <input type="number" id="callPause" min="0" max="5" step="0.5"></label>
     </div>
     <div id="drillInfo"></div>
+    <label>Start <select id="startPos"><option value="holster">Holster</option><option value="ready">Low ready</option><option value="table">Table</option><option value="random">Random</option></select>
+      <small>Names the first gap (draw, first shot, pickup) and keeps a separate par. Random picks one per rep and calls it out.</small></label>
     <div data-modes="drill called">
       <label>Reps <input type="number" id="reps" min="1" max="50" step="1"></label>
       <label>Rep interval (s) <input type="number" id="repInterval" min="2" max="60" step="1"></label>
@@ -170,7 +172,7 @@ const DEFAULTS = {
   threshold: -18, refractory: 0.08, command: "Make ready", prepTime: 3, readyWindow: 3,
   delayMin: 1, delayMax: 4, par: 2, silence: 5, maxWait: 10,
   early: true, voice: true, closing: true, speakResults: true,
-  mode: "course", pattern: "P S", pool: "2S | P S | 2P | 2P S", callPause: 1.5,
+  mode: "course", startPos: "holster", pattern: "P S", pool: "2S | P S | 2P | 2P S", callPause: 1.5,
   reps: 1, repInterval: 5, parMode: "off", parStep: 0.05, score: false, powerFactor: "minor",
 };
 const stored = load("standby.settings", {});
@@ -192,7 +194,7 @@ for (const key of Object.keys(DEFAULTS)) {
     S[key] = el.type === "checkbox" ? el.checked : (el.type === "number" || el.type === "range") ? parseFloat(el.value) : el.value;
     save("standby.settings", S);
     applyDetector();
-    if (["mode", "pattern", "pool", "reps"].includes(key)) pending = null;
+    if (["mode", "startPos", "pattern", "pool", "reps"].includes(key)) pending = null;
     if (key === "pattern") syncPreset();
     refreshDrillUi();
     if (key === "voice") { if (state === "idle") idleListen(); }
@@ -221,6 +223,20 @@ const PRESETS = [
 ];
 const NUM = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
 const isEvent = kind => kind === "R" || kind === "M";
+const STARTS = {
+  holster: { name: "Holster", first: "draw", say: "Holster." },
+  ready: { name: "Low ready", first: "first shot", say: "Low ready." },
+  table: { name: "Table", first: "pickup", say: "Gun on the table." },
+};
+function pickStart() {
+  const keys = Object.keys(STARTS);
+  return S.startPos === "random" ? keys[Math.floor(Math.random() * keys.length)] : STARTS[S.startPos] ? S.startPos : "holster";
+}
+// the first gap is named by the start position, the rest by the pattern ("extra" past its end)
+function shotLabels(drill, start, n) {
+  const first = STARTS[start || "holster"].first;
+  return Array.from({ length: n }, (_, i) => !i ? first : !drill ? "split" : drill.shots[i] ? drill.shots[i].label : "extra");
+}
 
 function parsePattern(text) {
   const toks = String(text).trim().split(/[\s,]+/).filter(Boolean);
@@ -335,11 +351,13 @@ const CAL_REPS = 3;
 const parStates = () => load("standby.par", {});
 function parState(key) { return parStates()[key] || { par: 0, streak: 0, cal: [], history: [] }; }
 function saveParState(key, st) { const all = parStates(); all[key] = st; save("standby.par", all); }
-function parFor(drill) {
+function parFor(drill, start) {
   if (S.parMode === "fixed") return S.par > 0 ? S.par : 0;
-  if (S.parMode === "adaptive" && drill) return parState(drill.key).par;
+  if (S.parMode === "adaptive" && drill) return parState(parKey(drill, start)).par;
   return 0;
 }
+// a draw and a shot from ready are different drills; holster keeps the plain pattern key
+const parKey = (drill, start) => drill.key + (start && start !== "holster" ? " @" + start : "");
 function updateAdaptive(key, total, pass) {
   const st = parState(key), step = S.parStep > 0 ? S.parStep : 0.05;
   let text;
@@ -421,18 +439,23 @@ function refreshDrillUi() {
     $("drillLine").textContent = drillLine();
     $("start").disabled = !!drillError;
     if ($("status").textContent === "Idle") $("hint").textContent = idleHint();
-    renderParLine(S.mode === "drill" && !drillError ? parsePattern(S.pattern).key : null);
+    const fixedStart = S.startPos !== "random";
+    renderParLine(S.mode === "drill" && !drillError && fixedStart ? parKey(parsePattern(S.pattern), S.startPos) : null);
   }
 }
-function drillLine(drill, rep, reps) {
-  if (S.mode === "course") return "";
+function drillLine(drill, rep, reps, start) {
   const parts = [];
+  const where = start || S.startPos;
   if (drill) parts.push(drill.key);
   else if (S.mode === "drill" && !drillError) parts.push(parsePattern(S.pattern).key);
   else if (S.mode === "called") parts.push("Called");
+  if (where !== "holster") parts.push(where === "random" ? "random start" : STARTS[where].name.toLowerCase());
+  if (S.mode === "course") return parts.join(" · ");
   if (reps > 1) parts.push(`rep ${rep + 1}/${reps}`);
   else if (pending) parts.push(`paused at rep ${pending.rep + 1}`);
-  const par = drill ? parFor(drill) : S.mode === "drill" && !drillError ? parFor(parsePattern(S.pattern)) : S.parMode === "fixed" ? S.par : 0;
+  const par = drill ? parFor(drill, start)
+    : S.mode === "drill" && !drillError && where !== "random" ? parFor(parsePattern(S.pattern), where)
+    : S.parMode === "fixed" ? S.par : 0;
   if (par) parts.push(`par ${fmt(par)}`);
   return parts.join(" · ");
 }
@@ -638,9 +661,10 @@ async function startSession() {
       drill = pool[Math.floor(Math.random() * pool.length)];
       set.lastKey = drill.key;
     }
-    $("drillLine").textContent = drillLine(drill, set.rep, reps);
-    renderParLine(drill && drill.key);
-    const r = await runString({ first, drill }, alive);
+    const start = pickStart();
+    $("drillLine").textContent = drillLine(drill, set.rep, reps, start);
+    renderParLine(drill && parKey(drill, start));
+    const r = await runString({ first, drill, start }, alive);
     first = false;
     if (!alive()) return;
     if (r === "error") break;
@@ -654,7 +678,7 @@ async function startSession() {
     if (set.rep < reps && await repPause(alive)) { pending = set; keep = false; break; }
   }
   if (!alive()) return;
-  if (!pending && set.results.length > 1) await setSummary(set.results, drills.length > 1, alive);
+  if (!pending && set.results.length > 1) await setSummary(set.results, drills.length > 1 || S.startPos === "random", alive);
   if (alive()) goIdle(keep);
 }
 
@@ -672,13 +696,21 @@ async function repPause(alive) {
 }
 
 // one string: commands, beep, shots, results. Returns a result, "hold" or "error".
-async function runString({ first, drill }, alive) {
+async function runString({ first, drill, start }, alive) {
   setBig("0.00"); $("shots").textContent = "";
 
+  // the start position is called out when it isn't the holster default, and every rep when random
+  const sayStart = start !== "holster" || S.startPos === "random" ? STARTS[start].say : "";
   if (first) {
-    setStatus(S.command, "Get into your start position.");
-    await speak(S.command);
+    const command = start === "table" ? "Make ready" : S.command;   // nothing to load into a gun on the table
+    setStatus(command, sayStart ? STARTS[start].name : "Get into your start position.");
+    await speak(sayStart ? `${command}. ${sayStart}` : command);
     await sleep(S.prepTime * 1000);
+    if (!alive()) return null;
+  } else if (S.startPos === "random") {
+    setStatus(STARTS[start].name, "Get into your start position.");
+    await speak(sayStart);
+    await sleep(Math.min(S.prepTime, 2) * 1000);
     if (!alive()) return null;
   }
 
@@ -719,8 +751,8 @@ async function runString({ first, drill }, alive) {
   const lo = Math.min(S.delayMin, S.delayMax), hi = Math.max(S.delayMin, S.delayMax);
   const armFrom = ctx.currentTime + 0.25;           // ignore the tail of "Standby"
   const T = ctx.currentTime + lo + Math.random() * (hi - lo);
-  const par = parFor(drill);
-  const s = string = { T, armFrom, onset: null, hits: [], early: false, par, drill };
+  const par = parFor(drill, start);
+  const s = string = { T, armFrom, onset: null, hits: [], early: false, par, drill, start };
   beepAt(T);
   if (par) s.parBeep = beepAt(T + par, 0.2);
 
@@ -803,7 +835,7 @@ function onHit(t) {
   if (s.par && !s.parHeard && x >= s.par - 0.02 && x < s.par + 0.1) { s.parHeard = true; return; }
   s.hits.push(x);
   setBig(fmt(x));
-  const labels = s.drill && s.drill.shots.map(sh => sh.label);
+  const labels = shotLabels(s.drill, s.start, s.hits.length);
   $("shots").textContent = (s.drill ? `${s.hits.length}/${s.drill.n} · ` : `${s.hits.length} · `) + gapText(s.hits, labels);
 }
 
@@ -819,7 +851,7 @@ async function finishString(s, alive) {
   if (drill && hits.length > drill.n) { extras = hits.length - drill.n; hits = resolveShots(hits, drill.shots); }
   const n = hits.length;
   const incomplete = !!drill && n < drill.n;
-  const labels = drill ? drill.shots.slice(0, n).map(sh => sh.label) : hits.map((_, i) => i ? "split" : "draw");
+  const labels = shotLabels(drill, s.start, n);
   const gaps = hits.map((h, i) => ({ label: labels[i], t: i ? h - hits[i - 1] : h }));
   const first = n ? hits[0] : null;
   const splits = hits.slice(1).map((h, i) => h - hits[i]);
@@ -850,12 +882,12 @@ async function finishString(s, alive) {
     parText = wrongCount ? "Wrong shot count." : total > s.par ? "Over par." : pass ? "Inside par." : "Mike, rep failed.";
   }
   if (drill && S.parMode === "adaptive" && n && !incomplete) {
-    const t = updateAdaptive(drill.key, total, pass);
+    const t = updateAdaptive(parKey(drill, s.start), total, pass);
     parText = (parText ? parText + " " : "") + t;
-    renderParLine(drill.key);
+    renderParLine(parKey(drill, s.start));
   }
 
-  const result = { at: Date.now(), mode: S.mode, pattern: drill ? drill.key : null, n, N: drill ? drill.n : n,
+  const result = { at: Date.now(), mode: S.mode, pattern: drill ? drill.key : null, start: s.start, parKey: drill ? parKey(drill, s.start) : null, n, N: drill ? drill.n : n,
     first, splits, total, labels, par: s.par, pass, score: score ? score.words.join("") : null,
     points: score ? score.points : null, hf, extras, incomplete };
   if (n) {
@@ -867,14 +899,14 @@ async function finishString(s, alive) {
   else if (drill) {
     if (incomplete) summary.push(S.mode === "called" ? `Called ${drill.n}, heard ${n}.` : `${n} of ${drill.n} shots heard.`);
     else if (wrongCount) summary.push(`Called ${drill.n}, heard ${s.hits.length}.`);
-    summary.push(`Total ${fmt(total)}.`, `Draw ${fmt(first)}.`);
+    summary.push(`Total ${fmt(total)}.`, `${cap(labels[0])} ${fmt(first)}.`);
     for (const label of ["split", "transition", "reload", "movement"]) {
       const ts = gaps.filter(g => g.label === label).map(g => g.t);
       if (ts.length) summary.push(`${ts.length > 1 ? "Average " + label : cap(label)} ${fmt(mean(ts))}.`);
     }
     if (extras && !wrongCount) summary.push(`${cap(NUM[Math.min(extras, 12)])} extra sound${extras > 1 ? "s" : ""} ignored.`);
   } else {
-    summary.push(`${n} shot${n > 1 ? "s" : ""}. First shot ${fmt(first)}.`);
+    summary.push(`${n} shot${n > 1 ? "s" : ""}. ${cap(labels[0])} ${fmt(first)}.`);
     if (splits.length) {
       summary.push(splits.length <= 5 ? `Splits ${splits.map(fmt).join(", ")}.`
         : `Best split ${fmt(Math.min(...splits))}, worst ${fmt(Math.max(...splits))}.`);
@@ -969,11 +1001,11 @@ $("scoreSkip").addEventListener("click", () => { if (scorepadSkip) scorepadSkip(
 $("scoreRedo").addEventListener("click", () => { if (scorepadRedo) scorepadRedo(); });
 
 // ---------- set summary ----------
-async function setSummary(results, called, alive) {
+async function setSummary(results, mixed, alive) {
   const done = results.filter(r => !r.incomplete && r.total != null);
   if (!done.length) return;
   const parts = [`Set done. ${done.length} reps.`];
-  if (!called) {   // totals of different patterns don't compare
+  if (!mixed) {   // totals of different patterns or start positions don't compare
     const totals = done.map(r => r.total);
     parts.push(`Best ${fmt(Math.min(...totals))}, average ${fmt(mean(totals))}.`);
   }
@@ -983,8 +1015,8 @@ async function setSummary(results, called, alive) {
     const ts = done.flatMap(r => r.gaps.filter(g => g.label === label).map(g => g.t));
     if (ts.length) parts.push(`Average ${label} ${fmt(mean(ts))}.`);
   }
-  if (!called && S.parMode === "adaptive" && done[0].pattern) {
-    const p = parState(done[0].pattern).par;
+  if (!mixed && S.parMode === "adaptive" && done[0].parKey) {
+    const p = parState(done[0].parKey).par;
     if (p) parts.push(`Par now ${fmt(p)}.`);
   }
   setStatus("Set done", parts.slice(1).join(" "));
@@ -1015,7 +1047,8 @@ function renderLog() {
   const rows = load("standby.log", []).slice(0, 30).map(e => {
     const d = new Date(e.at);
     const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    const drill = e.pattern ? e.pattern + (e.incomplete ? ` (${e.n}/${e.N})` : "") : `${e.n} shot${e.n > 1 ? "s" : ""}`;
+    const drill = (e.pattern ? e.pattern + (e.incomplete ? ` (${e.n}/${e.N})` : "") : `${e.n} shot${e.n > 1 ? "s" : ""}`) +
+      (e.start && e.start !== "holster" && STARTS[e.start] ? ` · ${STARTS[e.start].name.toLowerCase()}` : "");
     const par = e.par ? `${fmt(e.par)} ${e.pass ?? e.total <= e.par ? "✓" : "✗"}` : "";
     let row = `<tr data-i="${e.at}"><td>${time}</td><td>${drill}</td><td>${fmt(e.total)}</td><td>${e.hf != null ? e.hf.toFixed(2) : ""}</td><td>${par}</td></tr>`;
     if (expanded.has(e.at)) {

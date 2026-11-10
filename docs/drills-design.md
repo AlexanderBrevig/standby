@@ -62,6 +62,15 @@ A single **Mode** selector:
 
 Drill and Called share everything below. They differ only in where the pattern comes from.
 
+### Start position
+
+A **Start** dropdown, separate from the pattern, applies in every mode: Holster (default), Low ready, Table, Random.
+
+- It names the first gap: `draw` (holster), `first shot` (low ready), `pickup` (table).
+- Adaptive par is kept per pattern **and** start: the key is `P S` for holster (unchanged) and `P S @ready` / `P S @table` otherwise. A draw and a shot from ready differ by several tenths, so they mustn't share a par.
+- A start other than holster is called out with the start command ("Make ready. Low ready."). A table start always uses plain "Make ready", even when the setting is "Load and make ready".
+- Random picks a start per rep and calls it out before every "Are you ready?". The set summary then skips totals, since they don't compare.
+
 ## 3. Drill string flow
 
 ```
@@ -148,7 +157,7 @@ Table columns: Time · Pattern · Total · HF · Par. Tapping a row shows each s
 ## 9. Settings changes
 
 Grouped in the Settings card:
-- **Drill:** Mode, Pattern (preset + text), Pool (Called), Call pause, Reps, Rep interval
+- **Drill:** Mode, Start, Pattern (preset + text), Pool (Called), Call pause, Reps, Rep interval
 - **Par:** Off / Fixed (value) / Adaptive (step), with a "Reset adaptive par" button
 - **Scoring:** Score after string, Power factor
 - Existing timing/detector settings unchanged. "End after silence" applies to Course mode and to incomplete drill strings.
