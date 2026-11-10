@@ -111,8 +111,19 @@
         <small>P paper (2 shots), S steel (1 hit), R reload, M movement. Prefix = targets, suffix = shots per paper: 2P two papers, P1 one shot, 3P1 three papers one shot each, 5S five plates.</small></label>
     </div>
     <div data-modes="called">
-      <label>Pool <textarea id="pool" rows="3" autocomplete="off" autocapitalize="characters" spellcheck="false"></textarea>
+      <label>Patterns from <select id="calledFrom"><option value="pool">Pool</option><option value="targets">My targets</option></select></label>
+      <div data-from="pool">
+        <label>Pool <textarea id="pool" rows="5" autocomplete="off" autocapitalize="characters" spellcheck="false"></textarea>
         <small>Patterns separated by | or new lines. One is picked at random and briefed with the start command each rep.</small></label>
+      </div>
+      <div data-from="targets">
+        <label>My targets <input type="text" id="targets" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <small>What you have set up, e.g. 5P 3S. Each course uses some of them, each once, in random order.</small></label>
+        <label>Targets per course, min <input type="number" id="courseMin" min="1" max="24" step="1"></label>
+        <label>Targets per course, max <input type="number" id="courseMax" min="1" max="24" step="1"></label>
+        <label>Reload chance (%) <input type="number" id="reloadChance" min="0" max="100" step="5">
+          <small>Chance that a course gets one reload, at a random point between two targets.</small></label>
+      </div>
     </div>
     <div id="drillInfo"></div>
     <label>Start <select id="startPos"><option value="holster">Holster</option><option value="ready">Low ready</option><option value="table">Table</option><option value="random">Random</option></select>
@@ -171,11 +182,14 @@
 "use strict";
 
 // ---------- settings ----------
+// the default Called pool: enough variety to show what patterns can do
+const POOL = ["P S", "P S P", "S P S P", "2P S", "P 2S P", "3S P", "4P", "2P S 2P", "P S R P S", "2P R 2P", "S 3P S", "P1 P1 S S"].join("\n");
 const DEFAULTS = {
   threshold: -18, refractory: 0.08, command: "auto", prepTime: 3, readyWindow: 3,
   delayMin: 1, delayMax: 4, par: 2, silence: 5, maxWait: 10,
   early: true, voice: true, confirm: true, closing: true, speakResults: true,
-  mode: "course", startPos: "holster", pattern: "P S", pool: "2S | P S | 2P | 2P S",
+  mode: "course", startPos: "holster", pattern: "P S", pool: POOL,
+  calledFrom: "pool", targets: "5P 3S", courseMin: 3, courseMax: 6, reloadChance: 20,
   reps: 1, repInterval: 5, parMode: "off", parStep: 0.05, score: false, powerFactor: "minor",
 };
 const stored = load("standby.settings", {});
@@ -189,6 +203,10 @@ if (S.v < 4) {   // the start command now follows the start position by default;
   if (S.command === "Make ready") S.command = "auto";
   S.v = 4;
 }
+if (S.v < 5) {   // a larger default pool; a pool the user wrote is kept
+  if (S.pool === "2S | P S | 2P | 2P S") S.pool = POOL;
+  S.v = 5;
+}
 const RESUME = 2.5;   // s after "If you are finished": a shot here means the string goes on
 function load(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } }
 function save(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }
@@ -201,7 +219,7 @@ for (const key of Object.keys(DEFAULTS)) {
     S[key] = el.type === "checkbox" ? el.checked : (el.type === "number" || el.type === "range") ? parseFloat(el.value) : el.value;
     save("standby.settings", S);
     applyDetector();
-    if (["mode", "startPos", "pattern", "pool", "reps"].includes(key)) pending = null;
+    if (["mode", "startPos", "pattern", "pool", "calledFrom", "targets", "courseMin", "courseMax", "reloadChance", "reps"].includes(key)) pending = null;
     if (key === "pattern") syncPreset();
     refreshDrillUi();
     if (key === "voice") { if (state === "idle") idleListen(); }
@@ -306,7 +324,49 @@ function parsePool(text) {
   if (!parts.length) throw new Error("Empty pool.");
   return parts.map(p => { try { return parsePattern(p); } catch (e) { throw new Error(`“${p}”: ${e.message}`); } });
 }
-function currentDrills() { return S.mode === "drill" ? [parsePattern(S.pattern)] : S.mode === "called" ? parsePool(S.pool) : null; }
+// "5P 3S": the targets set up on the range, for generated courses
+function parseTargets(text) {
+  const inv = { P: 0, S: 0 };
+  for (const tok of String(text).trim().split(/[\s,]+/).filter(Boolean)) {
+    const m = /^(\d*)([PS])$/i.exec(tok);
+    if (!m) throw new Error(`Targets: unknown “${tok}”. Use e.g. 5P 3S.`);
+    inv[m[2].toUpperCase()] += m[1] ? +m[1] : 1;
+  }
+  if (!inv.P && !inv.S) throw new Error("Targets: list what you have set up, e.g. 5P 3S.");
+  if (inv.P + inv.S > 24) throw new Error("Targets: 24 at most.");
+  return inv;
+}
+const generated = () => S.mode === "called" && S.calledFrom === "targets";
+function courseRange(inv) {
+  const total = inv.P + inv.S;
+  const lo = Math.min(total, Math.max(1, Math.round(S.courseMin) || 1));
+  return [lo, Math.min(total, Math.max(lo, Math.round(S.courseMax) || lo))];
+}
+// a course a coach might set: some of the targets, each once, in random order, now and then a reload
+function generateCourse(inv, lastKey) {
+  const [lo, hi] = courseRange(inv);
+  let drill;
+  for (let tries = 0; tries < 10; tries++) {
+    const bag = [...new Array(inv.P).fill("P"), ...new Array(inv.S).fill("S")];
+    for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
+    const picks = bag.slice(0, lo + Math.floor(Math.random() * (hi - lo + 1)));
+    if (picks.length >= 2 && Math.random() * 100 < S.reloadChance) picks.splice(1 + Math.floor(Math.random() * (picks.length - 1)), 0, "R");
+    drill = parsePattern(picks.join(" "));
+    if (drill.key !== lastKey) break;
+  }
+  return drill;
+}
+// where each rep's pattern comes from: a list (fixed pattern, pool) or the targets to generate from
+function currentSource() {
+  if (S.mode === "drill") return { list: [parsePattern(S.pattern)] };
+  if (S.mode !== "called") return null;
+  return generated() ? { inv: parseTargets(S.targets) } : { list: parsePool(S.pool) };
+}
+function nextDrill(src, lastKey) {
+  if (src.inv) return generateCourse(src.inv, lastKey);
+  const pool = src.list.length > 1 ? src.list.filter(d => d.key !== lastKey) : src.list;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
 
 // More peaks than expected shots (reload noise, a stray echo): pick the expected number of
 // peaks, in order, that minimise draw + splits + transitions. Reload and movement gaps are free
@@ -365,7 +425,7 @@ function parState(key) { return parStates()[key] || { par: 0, streak: 0, cal: []
 function saveParState(key, st) { const all = parStates(); all[key] = st; save("standby.par", all); }
 function parFor(drill, start) {
   if (S.parMode === "fixed") return S.par > 0 ? S.par : 0;
-  if (S.parMode === "adaptive" && drill) return parState(parKey(drill, start)).par;
+  if (S.parMode === "adaptive" && drill && !generated()) return parState(parKey(drill, start)).par;
   return 0;
 }
 // a draw and a shot from ready are different drills; holster keeps the plain pattern key
@@ -408,7 +468,7 @@ function renderParLine(key) {
 const MODE_HELP = {
   course: "Open string: ends after silence, then the closing commands.",
   drill: "Fixed pattern: ends on the last expected shot.",
-  called: "A random pattern from the pool each rep, briefed with the start command.",
+  called: "A random course each rep, from the pool or generated from your targets, briefed with the start command.",
 };
 for (const [name, pattern] of PRESETS) $("preset").add(new Option(name, pattern));
 $("preset").add(new Option("Custom", ""));
@@ -432,19 +492,24 @@ function refreshDrillUi() {
   for (const el of document.querySelectorAll("[data-par]")) el.hidden = el.dataset.par !== S.parMode;
   for (const el of document.querySelectorAll("[data-score]")) el.hidden = !S.score;
   $("modeHelp").textContent = MODE_HELP[S.mode];
+  for (const el of document.querySelectorAll("[data-from]")) el.hidden = el.dataset.from !== S.calledFrom;
   $("parHelp").textContent = S.parMode !== "adaptive" ? "" : S.mode === "course"
     ? "Adaptive par needs Drill or Called mode."
+    : generated() ? "Adaptive par is kept per pattern, and generated courses rarely repeat, so it's off for them. Fixed par works."
     : `Two passes in a row: par −step. One fail: par +step. A pass is every shot inside par with no mike. The first ${NUM[CAL_REPS]} reps of a pattern set its starting par.`;
   drillError = null;
-  let info = "", drills = null;
-  try { drills = currentDrills(); } catch (e) { drillError = e.message; }
+  let info = "", src = null;
+  try { src = currentSource(); } catch (e) { drillError = e.message; }
   if (drillError) info = `<span class="err">${escapeHtml(drillError)}</span>`;
-  else if (drills && S.mode === "drill") info = `<span class="muted">${drills[0].key} · ${drills[0].n} shot${drills[0].n > 1 ? "s" : ""}</span>`;
-  else if (drills) {
-    const counts = drills.map(d => d.n);
+  else if (src && src.inv) {
+    const [lo, hi] = courseRange(src.inv);
+    info = `<span class="muted">${src.inv.P} paper, ${src.inv.S} steel · ${lo === hi ? lo : `${lo}–${hi}`} targets per course · e.g. ${generateCourse(src.inv).key}</span>`;
+  } else if (src && S.mode === "drill") info = `<span class="muted">${src.list[0].key} · ${src.list[0].n} shot${src.list[0].n > 1 ? "s" : ""}</span>`;
+  else if (src) {
+    const counts = src.list.map(d => d.n);
     const dup = counts.some((c, i) => counts.indexOf(c) !== i);
-    info = `<span class="muted">${drills.length} pattern${drills.length > 1 ? "s" : ""}: ${counts.join(", ")} shots.</span>` +
-      (dup ? ` <span class="err">Two patterns have the same shot count: shooting the wrong one of those can't be detected.</span>` : "");
+    info = `<span class="muted">${src.list.length} pattern${src.list.length > 1 ? "s" : ""}: ${counts.join(", ")} shots.` +
+      (dup ? " Some share a shot count: the count is all that's checked, so a mix-up between those goes unnoticed." : "") + "</span>";
   }
   $("drillInfo").innerHTML = info;
   if (state === "idle") {
@@ -660,25 +725,21 @@ function goIdle(keep = false) {
 
 async function startSession() {
   if (state !== "idle" || drillError) return;
-  let drills;
-  try { drills = currentDrills(); } catch { return; }
+  let src;
+  try { src = currentSource(); } catch { return; }
   const my = ++run;
   const alive = () => my === run;
   state = "running";
   stopListening(); stopListening = () => {};
   $("start").textContent = "Restart"; $("stop").disabled = false; $("test").disabled = true;
 
-  const reps = drills ? Math.max(1, Math.round(S.reps) || 1) : 1;
+  const reps = src ? Math.max(1, Math.round(S.reps) || 1) : 1;
   const set = activeSet = pending || { rep: 0, results: [], lastKey: null };
   pending = null;
   let first = true, keep = true;
   while (alive() && set.rep < reps) {
     let drill = null;
-    if (drills) {
-      const pool = drills.length > 1 ? drills.filter(d => d.key !== set.lastKey) : drills;
-      drill = pool[Math.floor(Math.random() * pool.length)];
-      set.lastKey = drill.key;
-    }
+    if (src) { drill = nextDrill(src, set.lastKey); set.lastKey = drill.key; }
     const start = pickStart();
     $("drillLine").textContent = drillLine(drill, set.rep, reps, start);
     renderParLine(drill && parKey(drill, start));
@@ -696,7 +757,7 @@ async function startSession() {
     if (set.rep < reps && await repPause(alive)) { pending = set; keep = false; break; }
   }
   if (!alive()) return;
-  if (!pending && set.results.length > 1) await setSummary(set.results, drills.length > 1 || S.startPos === "random", alive);
+  if (!pending && set.results.length > 1) await setSummary(set.results, !src.list || src.list.length > 1 || S.startPos === "random", alive);
   if (alive()) goIdle(keep);
 }
 
@@ -941,7 +1002,7 @@ async function finishString(s, alive) {
     pass = !wrongCount && total <= s.par && !(score && score.words.includes("M"));
     parText = wrongCount ? "Wrong shot count." : total > s.par ? "Over par." : pass ? "Inside par." : "Mike, rep failed.";
   }
-  if (drill && S.parMode === "adaptive" && n && !incomplete) {
+  if (drill && S.parMode === "adaptive" && !generated() && n && !incomplete) {
     const t = updateAdaptive(parKey(drill, s.start), total, pass);
     parText = (parText ? parText + " " : "") + t;
     renderParLine(parKey(drill, s.start));

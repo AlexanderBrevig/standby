@@ -135,6 +135,17 @@ Settings: **Power factor** minor / major.
 - **Distinct counts:** the app can only check the shot count, not the order. If two pool entries have the same total, the editor warns that a wrong pattern of the same count can't be detected. This is allowed, but flagged.
 - If the shots heard ≠ the called count, the rep fails ("Called three, heard two").
 
+### Generated courses ("My targets")
+
+Called mode can take its patterns from the **pool** or from **My targets**: what's set up on the range, e.g. `5P 3S`.
+
+- Each course uses a random selection of those targets, each at most once, in random order. Its length is between **Targets per course** min and max (default 3–6, capped at what's available), so a lone `P` (better done in Drill mode) doesn't come up.
+- **Reload chance** (default 20 %): the chance that a course gets one reload, placed at a random point between two targets.
+- The same course never comes twice in a row.
+- Adaptive par is off for generated courses. Par is kept per pattern and generated courses rarely repeat, so it would stay in calibration. Fixed par works.
+
+The default pool is larger (12 patterns, one per line) to show what patterns can do: `P S`, `P S P`, `S P S P`, `2P S`, `P 2S P`, `3S P`, `4P`, `2P S 2P`, `P S R P S`, `2P R 2P`, `S 3P S`, `P1 P1 S S`. Many share a shot count, so the editor's note about it is informational, not an error. A saved pool equal to the old 4-pattern default migrates to the new one.
+
 ## 7. Par: off / fixed / adaptive
 
 **Fixed:** the existing par beep, now per drill.
