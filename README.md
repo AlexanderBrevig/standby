@@ -14,6 +14,8 @@ IPSC-style range commands, a random start beep and a sound-triggered shot timer 
 Options: par time (second beep), early-start detection (sound before the beep), make-ready time, delay range, echo/min-split window, log of the last strings (stored in the browser only).
 
 ## Modes
+While a string runs, the page switches to a range view: settings hidden, the status, course and timer as large as the screen allows, so it can be read from a few metres. After the string it shows the verdict (inside/over par, hit factor), the total and every gap.
+
 - **Course**: the flow above. An open string that ends on silence.
 - **Drill**: a fixed pattern of targets. It's briefed first ("From table. Paper, paper, steel. Say continue to proceed."). Say "continue" or tap Continue to get the make-ready command; "repeat" reads it again. "Next" gives another challenge. This can be turned off in Settings. Until the beep, the big display shows the course mnemonic for planning, e.g. `T P S P` (table start, paper, steel, paper). The string ends on the last expected shot (two low beeps) with no closing commands, so reps go quickly. Each gap gets a name: draw, split, transition, reload, movement.
 - **Called**: each rep picks a random pattern, either from a pool or generated from the targets you have set up ("5P 3S", 3–6 targets per course, sometimes a reload), and briefs it with the start command every rep ("From table. Paper, steel. Make ready.").
@@ -24,7 +26,7 @@ Patterns: `P` paper (2 shots), `S` steel (1 hit), `R` reload, `M` movement. The 
 
 **Reps:** run a set of N reps with an interval between them. Say "stop" between reps to pause and "restart" to continue. A set summary is read out at the end. The Start button is always live: while a string runs it reads Restart and starts a fresh rep at once.
 
-**Scoring:** after the string, say one word per shot: alpha, charlie, delta, mike (a steel hit is alpha), or "all alpha". You can also tap the buttons. The number of words must match the number of shots. You get points (minor or major power factor) and hit factor. Say "correction" to score again.
+**Scoring:** after the string, say one word per shot: alpha, charlie, delta, mike (a steel hit is alpha), counts ("three alpha one charlie"), or "all alpha" (also "all alpha except one charlie"). You can also tap the buttons. The number of words must match the number of shots. You get points (minor or major power factor) and hit factor. Say "correction" to score again.
 
 **Adaptive par** (Drill/Called): a staircase per pattern. Two passes in a row take a step off par, one fail adds a step. A pass is every shot inside par with no mike. The first three reps set the starting par. See [docs/drills-design.md](docs/drills-design.md).
 
@@ -38,4 +40,6 @@ Patterns: `P` paper (2 shots), `S` steel (1 hit), `R` reload, `M` movement. The 
 - The screen is kept awake while the page is open (Wake Lock API, where supported).
 
 ## Development
-Plain HTML/CSS/JS in `index.html`, no build step. The shot detector is an AudioWorklet (inline, sample-accurate timestamps on the same clock as the scheduled beep). Serve over HTTPS or `localhost` (microphone access requires a secure context).
+Plain HTML/CSS/JS in `index.html`, no build step. The shot detector is an AudioWorklet (inline, sample-accurate timestamps on the same clock as the scheduled beep). The beeps are sine tones, notched out of the shot input and picked up on a second band-passed input, so shots during a beep still count and the beep's arrival is measured. Serve over HTTPS or `localhost` (microphone access requires a secure context).
+
+**Tests:** `tests/run.sh` runs the in-page self test (open `index.html?selftest` to see it) and simulated end-to-end runs (`tests/sim/`: stubbed mic, voice and clock, with scripted shots and replies) in headless Chrome, in about two seconds. CI runs the same script on every push (`.github/workflows/test.yml`). Ideas and next steps: [TODO.md](TODO.md).

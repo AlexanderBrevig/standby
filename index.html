@@ -8,13 +8,14 @@
 <meta name="theme-color" content="#111418">
 <style>
   :root {
-    --bg: #f5f6f7; --fg: #15181c; --muted: #5d6670; --card: #ffffff; --line: #d9dde2;
-    --accent: #e8590c; --ok: #2b8a3e; --warn: #c92a2a; --meter: #2b8a3e;
+    --bg: #f5f6f7; --fg: #15181c; --muted: #5d6670; --card: #ffffff; --line: #d9dde2; --control: #8a939c;
+    --accent: #c2470a; --on-accent: #ffffff; --ok: #2b8a3e; --warn: #c92a2a; --meter: #2b8a3e;
+    --big-max: 4.2rem;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #111418; --fg: #e9ecef; --muted: #98a2ad; --card: #1b1f24; --line: #2c3238;
-      --accent: #ff7a2f; --ok: #51cf66; --warn: #ff6b6b; --meter: #51cf66;
+      --bg: #111418; --fg: #e9ecef; --muted: #98a2ad; --card: #1b1f24; --line: #2c3238; --control: #5f6a75;
+      --accent: #ff7a2f; --on-accent: #111418; --ok: #51cf66; --warn: #ff6b6b; --meter: #51cf66;
     }
   }
   * { box-sizing: border-box; }
@@ -23,44 +24,68 @@
     font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   main { max-width: 560px; margin: 0 auto; padding: 16px; }
   h1 { font-size: 1.1rem; margin: 0 0 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  h2 { font-size: .8rem; margin: 18px 0 4px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  h2:first-child { margin-top: 0; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+  #display { container-type: inline-size; }   /* the status, mnemonic and timer scale with this card (cqi) */
   #status { font-size: 1.6rem; font-weight: 700; min-height: 2.2rem; }
   #hint { color: var(--muted); min-height: 1.4rem; }
   #drillLine { font-family: ui-monospace, Menlo, monospace; color: var(--muted); font-size: .9rem; min-height: 1.2rem; }
-  #display { container-type: inline-size; }   /* the mnemonic in #big scales with this card (cqi) */
-  #big { font: 700 4.2rem/1 ui-monospace, "SF Mono", Menlo, monospace; text-align: center; margin: 12px 0 4px; }
-  #shots { font-family: ui-monospace, Menlo, monospace; text-align: center; color: var(--muted); min-height: 1.4rem; word-wrap: break-word; }
-  #parline { display: block; width: 100%; height: 36px; margin-top: 8px; }
+  #big { font: 700 var(--big-max)/1 ui-monospace, "SF Mono", Menlo, monospace; text-align: center; margin: 12px 0 4px; white-space: nowrap; }
+  #result { font: 700 1.5rem ui-monospace, Menlo, monospace; text-align: center; min-height: 0; }
+  .gaps { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 2px 12px;
+    font-family: ui-monospace, Menlo, monospace; font-size: 1.05rem; margin-top: 6px; }
+  .gaps span { display: flex; justify-content: space-between; gap: 8px; }
+  .gaps i { font-style: normal; color: var(--muted); }
+  #parBox { margin-top: 8px; }
+  #parline { display: block; width: 100%; height: 36px; }
+  #parLabel { color: var(--muted); font-size: .85rem; text-align: right; }
   #scorepad { margin-top: 12px; }
-  #scoreWords { font: 700 1.3rem ui-monospace, Menlo, monospace; text-align: center; min-height: 1.8rem; letter-spacing: .15em; }
+  #scoreWords { font: 700 1.3rem ui-monospace, Menlo, monospace; text-align: center; min-height: 1.8rem; letter-spacing: .08em; }
   #scorepad button { padding: 12px 4px; }
   .row { display: flex; gap: 8px; }
-  button { flex: 1; font: inherit; font-weight: 700; padding: 16px 8px; border-radius: 10px;
-    border: 1px solid var(--line); background: var(--card); color: var(--fg); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .controls { gap: 12px; margin-bottom: 12px; }
+  .controls #start { flex: 2; }
+  button { flex: 1; font: inherit; font-weight: 700; padding: 16px 8px; border-radius: 10px; min-height: 44px;
+    border: 1px solid var(--control); background: var(--card); color: var(--fg); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
   button.small { flex: 0 0 auto; padding: 6px 12px; }
+  button.link { border: 0; background: none; padding: 0; min-height: 0; font-weight: inherit; text-align: left; color: inherit; text-decoration: underline dotted; }
   button:disabled { opacity: .45; }
   .meter { position: relative; height: 14px; background: var(--line); border-radius: 7px; overflow: hidden; margin-top: 12px; }
   .meter > i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--meter); }
   .meter > b { position: absolute; top: -2px; bottom: -2px; width: 3px; background: var(--warn); }
   .meter.hit > i { background: var(--accent); }
-  details summary { cursor: pointer; font-weight: 700; }
+  details summary { cursor: pointer; font-weight: 700; min-height: 32px; }
   label { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; margin: 10px 0; }
   label small { grid-column: 1 / -1; color: var(--muted); }
   input[type=range] { grid-column: 1 / -1; width: 100%; }
-  input[type=number], input[type=text], select, textarea { font: inherit; width: 6.5rem; padding: 4px; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; }
+  input[type=number], input[type=text], select, textarea { font: inherit; width: 6.5rem; min-height: 40px; padding: 4px 6px;
+    background: var(--bg); color: var(--fg); border: 1px solid var(--control); border-radius: 6px; }
   input[type=text], textarea { grid-column: 1 / -1; width: 100%; font-family: ui-monospace, Menlo, monospace; }
-  select { width: 9rem; }
+  input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); }
+  [aria-invalid="true"] { border-color: var(--warn); }
+  select { width: 10rem; }
   #drillInfo { font-size: .9rem; }
   .err { color: var(--warn); }
   table { width: 100%; border-collapse: collapse; font-family: ui-monospace, Menlo, monospace; font-size: .85rem; }
   td, th { text-align: left; padding: 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { color: var(--muted); font-weight: 600; }
-  #log tr[data-i] { cursor: pointer; }
   #log tr.detail td { color: var(--muted); white-space: normal; }
+  #voiceHelp table { font-family: inherit; font-size: .9rem; margin-top: 8px; }
+  #voiceHelp td:first-child { white-space: nowrap; font-weight: 700; }
   #overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
   #overlay .card { max-width: 420px; }
   .muted { color: var(--muted); }
+  #selftest { white-space: pre-wrap; font: .8rem ui-monospace, Menlo, monospace; }
+
+  /* range view: while a string runs, the phone is metres away and only the display matters */
+  body.running { --big-max: 9rem; }
+  body.running .chrome, body.running #meter { display: none; }
+  body.running #display { min-height: calc(100dvh - 120px); display: flex; flex-direction: column; justify-content: center; }
+  body.running #status { font-size: clamp(1.6rem, 8cqi, 3.2rem); line-height: 1.15; }
+  body.running #hint { font-size: 1.2rem; color: var(--fg); }
+  body.running .gaps { font-size: clamp(1.05rem, 4.5cqi, 1.6rem); }
 </style>
 </head>
 <body>
@@ -75,49 +100,66 @@
 </div>
 
 <main>
-  <h1>Standby</h1>
+  <h1 class="chrome">Standby</h1>
   <div class="card" id="display">
-    <div id="status">Idle</div>
-    <div id="hint"></div>
+    <div role="status" aria-live="polite" aria-atomic="true">
+      <div id="status">Idle</div>
+      <div id="hint"></div>
+    </div>
     <div id="drillLine"></div>
     <div id="big">0.00</div>
-    <div id="shots"></div>
-    <svg id="parline" hidden></svg>
+    <div id="result"></div>
+    <div id="shots" class="gaps"></div>
+    <div id="parBox" hidden><svg id="parline" role="img"></svg><div id="parLabel"></div></div>
     <div id="scorepad" hidden>
-      <div id="scoreWords"></div>
+      <div id="scoreWords" aria-live="polite"></div>
       <div class="row" id="scoreTaps">
-        <button data-w="A">A</button><button data-w="C">C</button><button data-w="D">D</button><button data-w="M">M</button><button data-w="undo">⌫</button>
+        <button data-w="A" aria-label="Alpha">A</button><button data-w="C" aria-label="Charlie">C</button><button data-w="D" aria-label="Delta">D</button><button data-w="M" aria-label="Mike">M</button><button data-w="undo" aria-label="Undo">⌫</button>
       </div>
       <div class="row" style="margin-top:8px">
         <button id="scoreRedo" hidden>Redo</button>
         <button id="scoreSkip">Skip</button>
       </div>
     </div>
-    <div class="meter" id="meter"><i></i><b></b></div>
+    <div class="meter" id="meter" aria-hidden="true"><i></i><b></b></div>
   </div>
 
-  <div class="row" style="margin-bottom:12px">
+  <div class="row controls">
     <button class="primary" id="start">Start</button>
     <button id="stop" disabled>Stop</button>
-    <button id="test">Mic test</button>
   </div>
 
-  <div class="card">
+  <details class="card chrome" id="voiceHelp">
+    <summary>Voice commands</summary>
+    <table>
+      <tr><td>restart</td><td>Start a string (also “start”, “resume”); resumes a paused set</td></tr>
+      <tr><td>continue</td><td>After the briefing: get the make-ready command</td></tr>
+      <tr><td>repeat</td><td>Read the briefing again</td></tr>
+      <tr><td>next</td><td>During the briefing: another course</td></tr>
+      <tr><td>not ready</td><td>After “Are you ready?”: hold</td></tr>
+      <tr><td>stop</td><td>Between reps: pause the set</td></tr>
+      <tr><td>alpha … mike</td><td>Score: one word per shot, “all alpha”, or counts (“three alpha one charlie”)</td></tr>
+      <tr><td>correction</td><td>After the score readback: score again</td></tr>
+    </table>
+  </details>
+
+  <div class="card chrome">
+    <h2>What to shoot</h2>
     <label>Mode <select id="mode"><option value="course">Course</option><option value="drill">Drill</option><option value="called">Called</option></select>
       <small id="modeHelp"></small></label>
     <div data-modes="drill">
       <label>Preset <select id="preset"></select></label>
-      <label>Pattern <input type="text" id="pattern" autocomplete="off" autocapitalize="characters" spellcheck="false">
-        <small>P paper (2 shots), S steel (1 hit), R reload, M movement. Prefix = targets, suffix = shots per paper: 2P two papers, P1 one shot, 3P1 three papers one shot each, 5S five plates.</small></label>
+      <label>Pattern <input type="text" id="pattern" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="drillInfo">
+        <small><b>P S P</b> = paper, steel, paper · <b>2P</b> = two papers · <b>P1</b> = one shot on a paper · <b>5S</b> = five steel · <b>R</b> reload · <b>M</b> move. A paper gets two shots unless a number follows it.</small></label>
     </div>
     <div data-modes="called">
-      <label>Patterns from <select id="calledFrom"><option value="pool">Pool</option><option value="targets">My targets</option></select></label>
+      <label>Courses <select id="calledFrom"><option value="pool">Random from a list</option><option value="targets">Generate from my targets</option></select></label>
       <div data-from="pool">
-        <label>Pool <textarea id="pool" rows="5" autocomplete="off" autocapitalize="characters" spellcheck="false"></textarea>
-        <small>Patterns separated by | or new lines. One is picked at random and briefed with the start command each rep.</small></label>
+        <label>List <textarea id="pool" rows="5" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="drillInfo"></textarea>
+        <small>One pattern per line (or separated by |). One is picked at random each rep and briefed.</small></label>
       </div>
       <div data-from="targets">
-        <label>My targets <input type="text" id="targets" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <label>My targets <input type="text" id="targets" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="drillInfo">
           <small>What you have set up, e.g. 5P 3S. Each course uses some of them, each once, in random order.</small></label>
         <label>Targets per course, min <input type="number" id="courseMin" min="1" max="24" step="1"></label>
         <label>Targets per course, max <input type="number" id="courseMax" min="1" max="24" step="1"></label>
@@ -126,11 +168,13 @@
       </div>
     </div>
     <div id="drillInfo"></div>
-    <label>Start <select id="startPos"><option value="holster">Holster</option><option value="ready">Low ready</option><option value="table">Table</option><option value="random">Random</option></select>
+
+    <h2>How</h2>
+    <label>Start position <select id="startPos"><option value="holster">Holster</option><option value="ready">Low ready</option><option value="table">Table</option><option value="random">Random</option></select>
       <small>Names the first gap (draw, first shot, pickup) and keeps a separate par. Random picks one per rep and calls it out.</small></label>
     <div data-modes="drill called">
       <label>Reps <input type="number" id="reps" min="1" max="50" step="1"></label>
-      <label>Rep interval (s) <input type="number" id="repInterval" min="2" max="60" step="1"></label>
+      <label data-reps>Rep interval (s) <input type="number" id="repInterval" min="2" max="60" step="1"></label>
     </div>
     <label>Par <select id="parMode"><option value="off">Off</option><option value="fixed">Fixed</option><option value="adaptive">Adaptive</option></select>
       <small id="parHelp"></small></label>
@@ -138,51 +182,75 @@
     <label data-par="adaptive">Adaptive step (s) <input type="number" id="parStep" min="0.01" max="0.5" step="0.01"></label>
     <div data-par="adaptive" class="row"><button class="small" id="resetPar">Reset adaptive par</button></div>
     <label>Score after string <input type="checkbox" id="score">
-      <small>Say one word per shot: alpha, charlie, delta, mike (a steel hit is alpha), or “all alpha”. Or tap the buttons.</small></label>
+      <small>Say one word per shot: alpha, charlie, delta, mike (a steel hit is alpha), “all alpha”, or counts like “three alpha one charlie”. Or tap the letters.</small></label>
     <label data-score>Power factor <select id="powerFactor"><option value="minor">Minor</option><option value="major">Major</option></select></label>
   </div>
 
-  <div class="card">
+  <div class="card chrome">
+    <h2>Range commands &amp; voice</h2>
+    <label>Start command <select id="command"><option value="auto">Automatic</option><option>Make ready</option><option>Load and make ready</option></select>
+      <small>Automatic: “Make ready” for a table start, “Load and make ready” otherwise. A table start is always “Make ready”.</small></label>
+    <label>Voice commands <input type="checkbox" id="voice">
+      <small id="voiceNote">Listen for “restart”, “continue”, “not ready”, scores …</small></label>
+    <label>Wait for “continue” after the briefing <input type="checkbox" id="confirm">
+      <small>“From low ready. Paper, steel. Say continue to proceed.” Without voice recognition the briefing continues by itself after a few seconds.</small></label>
+    <label>Closing commands (unload &amp; show clear …) <input type="checkbox" id="closing">
+      <small>Course mode only.</small></label>
+    <label>Speak results <input type="checkbox" id="speakResults"></label>
+  </div>
+
+  <div class="card chrome">
     <details>
-      <summary>Settings</summary>
+      <summary>Detector &amp; timing</summary>
       <label>Sensitivity threshold <output id="thrOut"></output>
         <input type="range" id="threshold" min="-50" max="-1" step="1">
-        <small>Shots are sound peaks above this level (dBFS). Use “Mic test”: set it just above room noise, below the dry-fire click.</small></label>
+        <small>Shots are sound peaks above this level (dBFS). Use the mic test: set it just above room noise, below the dry-fire click.</small></label>
+      <div class="row"><button id="test">Mic test</button></div>
       <label>Echo / min split (s) <input type="number" id="refractory" min="0.02" max="0.5" step="0.01"></label>
-      <label>Start command <select id="command"><option value="auto">Automatic</option><option>Make ready</option><option>Load and make ready</option></select>
-        <small>Automatic: “Make ready” for a table start, “Load and make ready” otherwise. A table start is always “Make ready”.</small></label>
       <label>Make-ready time (s) <input type="number" id="prepTime" min="0" max="30" step="0.5"></label>
       <label>“Not ready” window (s) <input type="number" id="readyWindow" min="0" max="10" step="0.5"></label>
       <label>Standby delay min (s) <input type="number" id="delayMin" min="0.5" max="10" step="0.1"></label>
       <label>Standby delay max (s) <input type="number" id="delayMax" min="0.5" max="10" step="0.1"></label>
       <label>End after silence (s) <input type="number" id="silence" min="1" max="15" step="0.5">
-        <small>Course mode, and drill strings with shots missing.</small></label>
+        <small>Course mode, and drill strings that don't add up yet (shots missing, or noise that doesn't fit the pattern).</small></label>
       <label>Max wait for first shot (s) <input type="number" id="maxWait" min="2" max="60" step="1"></label>
       <label>Flag shots before the beep <input type="checkbox" id="early"></label>
-      <label>Voice commands (“restart”, “not ready”) <input type="checkbox" id="voice"></label>
-      <label>Wait for “continue” after the briefing <input type="checkbox" id="confirm">
-        <small>“From low ready. Paper, steel. Say continue to proceed.” Say “continue” or tap Continue to get the make-ready command; “repeat” reads the briefing again.</small></label>
-      <label>Closing commands (unload &amp; show clear …) <input type="checkbox" id="closing">
-        <small>Course mode only.</small></label>
-      <label>Speak results <input type="checkbox" id="speakResults"></label>
     </details>
   </div>
 
-  <div class="card">
+  <div class="card chrome">
     <div class="row" style="align-items:center">
       <b style="flex:1">Log</b>
       <button id="clearLog" class="small">Clear</button>
     </div>
     <table><thead><tr><th>Time</th><th>Drill</th><th>Total</th><th>HF</th><th>Par</th></tr></thead><tbody id="log"></tbody></table>
   </div>
-  <p class="muted" style="font-size:.85rem">Times run from the beep as the mic hears it, so speaker/mic latency cancels out. Saying “bang” adds your voice reaction time: use the click for numbers. <a href="https://github.com/AlexanderBrevig/standby" style="color:inherit">Source</a></p>
+  <p class="muted chrome" style="font-size:.85rem">Times run from the beep as the mic hears it, so speaker/mic latency cancels out. Saying “bang” adds your voice reaction time: use the click for numbers. <a href="https://github.com/AlexanderBrevig/standby" style="color:inherit">Source</a></p>
 </main>
 
 <script>
 "use strict";
 
+// ---------- storage ----------
+function load(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } }
+function save(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }
+const $ = id => document.getElementById(id);
+
+// ---------- helpers ----------
+const NUM = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+const numWord = n => NUM[n] ?? String(n);
+const plural = (n, word) => word + (n === 1 ? "" : "s");
+const fmt = x => x.toFixed(2);
+const round2 = x => Math.round(x * 100) / 100;
+const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
+const median = xs => { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const dbToAmp = db => Math.pow(10, db / 20);
+function escapeHtml(t) { return String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]); }
+
 // ---------- settings ----------
-// the default Called pool: enough variety to show what patterns can do
+// the default Called list: enough variety to show what patterns can do
 const POOL = ["P S", "P S P", "S P S P", "2P S", "P 2S P", "3S P", "4P", "2P S 2P", "P S R P S", "2P R 2P", "S 3P S", "P1 P1 S S"].join("\n");
 const DEFAULTS = {
   threshold: -18, refractory: 0.08, command: "auto", prepTime: 3, readyWindow: 3,
@@ -192,62 +260,66 @@ const DEFAULTS = {
   calledFrom: "pool", targets: "5P 3S", courseMin: 3, courseMax: 6, reloadChance: 20,
   reps: 1, repInterval: 5, parMode: "off", parStep: 0.05, score: false, powerFactor: "minor",
 };
+// settings that change what a paused set would shoot: changing one drops the pause
+const SET_KEYS = ["mode", "startPos", "pattern", "pool", "calledFrom", "targets", "courseMin", "courseMax", "reloadChance", "reps"];
+// MIGRATIONS[i] upgrades saved settings from version i + 1 (no version = 1)
+const MIGRATIONS = [
+  s => { if (s.silence === 3) s.silence = DEFAULTS.silence; },                    // the old default ended strings too soon
+  (s, stored) => { if (stored.par > 0) s.parMode = "fixed"; else s.par = DEFAULTS.par; },   // par 0 used to mean off
+  s => { if (s.command === "Make ready") s.command = "auto"; },                   // the start command follows the start position
+  s => { if (s.pool === "2S | P S | 2P | 2P S") s.pool = POOL; },                 // a larger default list; a user's own is kept
+];
+const VERSION = MIGRATIONS.length + 1;
 const stored = load("standby.settings", {});
-const S = Object.assign({}, DEFAULTS, stored);
-if (!S.v) { if (S.silence === 3) S.silence = DEFAULTS.silence; S.v = 2; }   // old default ended strings too soon
-if (S.v < 3) {   // par 0 used to mean off; now there's a par mode
-  if (stored.par > 0) S.parMode = "fixed"; else S.par = DEFAULTS.par;
-  S.v = 3;
-}
-if (S.v < 4) {   // the start command now follows the start position by default; "Make ready" was the old default
-  if (S.command === "Make ready") S.command = "auto";
-  S.v = 4;
-}
-if (S.v < 5) {   // a larger default pool; a pool the user wrote is kept
-  if (S.pool === "2S | P S | 2P | 2P S") S.pool = POOL;
-  S.v = 5;
-}
-const RESUME = 2.5;   // s after "If you are finished": a shot here means the string goes on
-function load(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } }
-function save(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }
+const S = { v: VERSION };
+for (const key of Object.keys(DEFAULTS)) S[key] = key in stored ? stored[key] : DEFAULTS[key];   // retired keys drop out
+if (Object.keys(stored).length) for (let v = (stored.v || 1) - 1; v < MIGRATIONS.length; v++) MIGRATIONS[v](S, stored);
+save("standby.settings", S);
 
-const $ = id => document.getElementById(id);
+function readInput(el, key) {
+  if (el.type === "checkbox") return el.checked;
+  if (el.type === "number" || el.type === "range") { const v = parseFloat(el.value); return Number.isFinite(v) ? v : DEFAULTS[key]; }
+  return el.value;
+}
 for (const key of Object.keys(DEFAULTS)) {
   const el = $(key);
+  if (!el) throw new Error(`Settings: no element #${key}`);
   if (el.type === "checkbox") el.checked = S[key]; else el.value = S[key];
-  const update = () => {
-    S[key] = el.type === "checkbox" ? el.checked : (el.type === "number" || el.type === "range") ? parseFloat(el.value) : el.value;
+  const update = e => {
+    S[key] = readInput(el, key);
+    if (e.type === "change" && el.type === "number" && !Number.isFinite(parseFloat(el.value))) el.value = S[key];   // an emptied field falls back
     save("standby.settings", S);
     applyDetector();
-    if (["mode", "startPos", "pattern", "pool", "calledFrom", "targets", "courseMin", "courseMax", "reloadChance", "reps"].includes(key)) pending = null;
+    if (SET_KEYS.includes(key)) pending = null;
     if (key === "pattern") syncPreset();
     refreshDrillUi();
-    if (key === "voice") { if (state === "idle") idleListen(); }
+    if (key === "voice" && state === "idle") { idleListen(); setStatus(statusText, idleHint()); }
   };
   el.addEventListener("change", update);
   if (el.type === "text" || el.tagName === "TEXTAREA") el.addEventListener("input", update);
 }
+// live preview while the slider is dragged; "change" above saves when it's let go
 $("threshold").addEventListener("input", () => { S.threshold = parseFloat($("threshold").value); applyDetector(); });
 
-const BEEP = 0.3;        // start beep length (s)
-const BEEP_HZ = 2400;
-const GRACE = 0.6;       // s after the last expected shot before a drill string ends
-const LOOSE_GRACE = 1.0; // same, as silence, when the pattern has a reload or movement (reload noise)
-const dbToAmp = db => Math.pow(10, db / 20);
-const fmt = x => x.toFixed(2);
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
-const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+// ---------- constants ----------
+const BEEP = 0.3, PAR_BEEP = 0.2;   // s
+const BEEP_HZ = 2400;               // notched out of the shot detector, picked up by the beep detector
+const GRACE = 0.6;                  // s of quiet after the expected shots before a drill string ends
+const LOOSE_GRACE = 1.5;            // the same with a reload or movement: reload noise comes in bursts
+const RESUME = 2.5;                 // s after "If you are finished": a shot here means the string goes on
+const MIN_PAR = 0.3;
+const CAL_REPS = 3;                 // reps that set a pattern's first adaptive par
+const LOG_KEEP = 100, LOG_SHOW = 30;
 
-// ---------- drills ----------
+// ---------- patterns ----------
 // A pattern is targets and events: P paper (2 shots), S steel (1 hit), R reload, M movement.
 // Prefix = number of targets, suffix = shots per paper: 2P, P1, 3P1, 5S.
 const PRESETS = [
   ["Draw", "P1"], ["Doubles", "P"], ["Paper–steel", "P S"], ["Blake", "3P"], ["Bill drill", "P6"],
   ["One per paper", "3P1"], ["Reload", "P R P"], ["El Presidente", "3P R 3P"], ["Steel five", "5S"],
 ];
-const NUM = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
 const isEvent = kind => kind === "R" || kind === "M";
+const isEventGap = label => label === "reload" || label === "movement";
 const STARTS = {
   holster: { name: "Holster", first: "draw", from: "From holster.", mark: "H" },
   ready: { name: "Low ready", first: "first shot", from: "From low ready.", mark: "L" },
@@ -255,9 +327,9 @@ const STARTS = {
 };
 // nothing to load into a gun on the table
 const startCommand = start => start === "table" ? "Make ready" : S.command === "auto" ? "Load and make ready" : S.command;
-function pickStart() {
+function pickStart(rnd = Math.random) {
   const keys = Object.keys(STARTS);
-  return S.startPos === "random" ? keys[Math.floor(Math.random() * keys.length)] : STARTS[S.startPos] ? S.startPos : "holster";
+  return S.startPos === "random" ? keys[Math.floor(rnd() * keys.length)] : STARTS[S.startPos] ? S.startPos : "holster";
 }
 // the first gap is named by the start position, the rest by the pattern ("extra" past its end)
 function shotLabels(drill, start, n) {
@@ -289,16 +361,16 @@ function parsePattern(text) {
   }
   if (isEvent(items[items.length - 1].kind)) throw new Error(`A pattern can't end with ${items[items.length - 1].kind}.`);
 
-  // each shot carries the label of the gap before it
+  // each shot carries the label of the gap before it, and the target it goes to
   const shots = [];
-  let prev = null, gap = null;
+  let prev = null, gap = null, ti = 0;
   for (const it of items) {
     if (isEvent(it.kind)) { gap = it.kind === "R" ? "reload" : "movement"; continue; }
     for (let j = 0; j < it.shots; j++) {
       const label = !shots.length ? "draw" : j ? "split" : gap || "transition";
-      shots.push({ label, sub: label === "transition" ? prev.kind + "→" + it.kind : null });
+      shots.push({ label, sub: label === "transition" ? prev.kind + "→" + it.kind : null, target: it.kind, ti });
     }
-    prev = it; gap = null;
+    prev = it; gap = null; ti++;
   }
 
   // runs of identical targets are grouped for the canonical text and the spoken call
@@ -311,8 +383,8 @@ function parsePattern(text) {
   const key = groups.map(g => (g.x > 1 ? g.x : "") + g.kind + (g.kind === "P" && g.shots !== 2 ? g.shots : "")).join(" ");
   // "paper, paper, steel": targets one by one, runs of more than three grouped ("five steel")
   const call = groups.map(g => g.kind === "R" ? "reload" : g.kind === "M" ? "move" :
-    (g.x > 3 ? `${NUM[g.x]} ${g.kind === "P" ? "paper" : "steel"}` : new Array(g.x).fill(g.kind === "P" ? "paper" : "steel").join(", ")) +
-    (g.kind === "P" && g.shots !== 2 ? `, ${NUM[g.shots]} shot${g.shots > 1 ? "s" : ""}${g.x > 1 ? " each" : ""}` : "")
+    (g.x > 3 ? `${numWord(g.x)} ${g.kind === "P" ? "paper" : "steel"}` : new Array(g.x).fill(g.kind === "P" ? "paper" : "steel").join(", ")) +
+    (g.kind === "P" && g.shots !== 2 ? `, ${numWord(g.shots)} ${plural(g.shots, "shot")}${g.x > 1 ? " each" : ""}` : "")
   ).join(", ") + ".";
   // "P S P", "P P P R P P P", "P1 P1": every target, for the big display while planning
   const marks = items.map(it => it.kind + (it.kind === "P" && it.shots !== 2 ? it.shots : "")).join(" ");
@@ -321,7 +393,7 @@ function parsePattern(text) {
 
 function parsePool(text) {
   const parts = String(text).split(/[|\n]/).map(t => t.trim()).filter(Boolean);
-  if (!parts.length) throw new Error("Empty pool.");
+  if (!parts.length) throw new Error("Empty list.");
   return parts.map(p => { try { return parsePattern(p); } catch (e) { throw new Error(`“${p}”: ${e.message}`); } });
 }
 // "5P 3S": the targets set up on the range, for generated courses
@@ -337,20 +409,20 @@ function parseTargets(text) {
   return inv;
 }
 const generated = () => S.mode === "called" && S.calledFrom === "targets";
-function courseRange(inv) {
+function courseRange(inv, opts = S) {
   const total = inv.P + inv.S;
-  const lo = Math.min(total, Math.max(1, Math.round(S.courseMin) || 1));
-  return [lo, Math.min(total, Math.max(lo, Math.round(S.courseMax) || lo))];
+  const lo = Math.min(total, Math.max(1, Math.round(opts.courseMin) || 1));
+  return [lo, Math.min(total, Math.max(lo, Math.round(opts.courseMax) || lo))];
 }
 // a course a coach might set: some of the targets, each once, in random order, now and then a reload
-function generateCourse(inv, lastKey) {
-  const [lo, hi] = courseRange(inv);
+function generateCourse(inv, lastKey, opts = S, rnd = Math.random) {
+  const [lo, hi] = courseRange(inv, opts);
   let drill;
   for (let tries = 0; tries < 10; tries++) {
     const bag = [...new Array(inv.P).fill("P"), ...new Array(inv.S).fill("S")];
-    for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
-    const picks = bag.slice(0, lo + Math.floor(Math.random() * (hi - lo + 1)));
-    if (picks.length >= 2 && Math.random() * 100 < S.reloadChance) picks.splice(1 + Math.floor(Math.random() * (picks.length - 1)), 0, "R");
+    for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
+    const picks = bag.slice(0, lo + Math.floor(rnd() * (hi - lo + 1)));
+    if (picks.length >= 2 && rnd() * 100 < opts.reloadChance) picks.splice(1 + Math.floor(rnd() * (picks.length - 1)), 0, "R");
     drill = parsePattern(picks.join(" "));
     if (drill.key !== lastKey) break;
   }
@@ -368,107 +440,158 @@ function nextDrill(src, lastKey) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-// More peaks than expected shots (reload noise, a stray echo): pick the expected number of
-// peaks, in order, that minimise draw + splits + transitions. Reload and movement gaps are free
-// (slightly rewarded when long), so a magazine seating just before the next shot loses to the
-// real shot, whose split to the following shot is short.
-function resolveShots(peaks, shots) {
+// ---------- matching sounds to shots ----------
+// The mic hears more than shots: an echo, the magazine hitting the floor, seating it, the slide
+// release. Choose which peaks were the expected shots so that every dropped peak has a plausible
+// explanation and every kept gap is humanly possible; among those, prefer short splits.
+// Returns { picks, cost, penalty }: penalty under 0.9 means the peaks fit the pattern.
+const ECHO = 0.15, MIN_SPLIT = 0.1, MIN_RELOAD = 0.8, QUICK_RELOAD = 1.2, MIN_MOVE = 0.3;
+function planShots(peaks, shots) {
   const P = peaks.length, N = shots.length;
-  if (P <= N) return peaks.slice();
-  const cost = (k, gap) => shots[k].label === "split" || shots[k].label === "transition" ? gap : -0.05 * gap;
-  const dp = [], from = [];
-  for (let k = 0; k < N; k++) {
-    dp.push(new Array(P).fill(Infinity)); from.push(new Array(P).fill(-1));
+  if (!N || P < N) return { picks: peaks.slice(), cost: Infinity, penalty: Infinity };
+  const loose = k => isEventGap(shots[k].label);
+  const tie = (k, gap) => loose(k) ? 0 : 0.1 * gap;
+  // a reload faster than MIN_RELOAD is noise, one under QUICK_RELOAD is possible but suspect
+  const gapCost = (k, gap) => shots[k].label === "reload" ? (gap < MIN_RELOAD ? 1 : gap < QUICK_RELOAD ? 0.2 : 0)
+    : shots[k].label === "movement" ? (gap < MIN_MOVE ? 1 : 0) : gap < MIN_SPLIT ? 1 : 0;
+  // a dropped peak m between kept peaks j and i: reload noise (the magazine landing within a second of
+  // the last shot, seating and slide release just before the next), or an echo
+  const skipCost = (k, j, i, m) => loose(k)
+    ? (peaks[m] - peaks[j] < 1.0 || peaks[i] - peaks[m] < 0.35 ? 0.05 : 0.3)
+    : peaks[m] - peaks[j] <= ECHO ? 0.1 : 1;
+  // after the last shot: an echo, a rack or holster noise, or (in between) more likely a real shot
+  const tailCost = d => d <= ECHO ? 0.1 : d > 0.4 ? 0.05 : 0.5;
+  const dp = Array.from({ length: N }, () => new Array(P).fill(Infinity));
+  const pen = Array.from({ length: N }, () => new Array(P).fill(Infinity));
+  const from = Array.from({ length: N }, () => new Array(P).fill(-1));
+  for (let i = 0; i <= P - N; i++) { dp[0][i] = pen[0][i] = 0.5 * i; }   // noise before the first shot is rare
+  for (let k = 1; k < N; k++) {
     for (let i = k; i <= P - N + k; i++) {
-      if (k === 0) { dp[0][i] = peaks[i]; continue; }
       for (let j = k - 1; j < i; j++) {
-        const c = dp[k - 1][j] + cost(k, peaks[i] - peaks[j]);
-        if (c < dp[k][i]) { dp[k][i] = c; from[k][i] = j; }
+        if (dp[k - 1][j] === Infinity) continue;
+        const gap = peaks[i] - peaks[j];
+        let p = pen[k - 1][j] + gapCost(k, gap);
+        for (let m = j + 1; m < i; m++) p += skipCost(k, j, i, m);
+        const c = dp[k - 1][j] - pen[k - 1][j] + p + tie(k, gap);
+        if (c < dp[k][i]) { dp[k][i] = c; pen[k][i] = p; from[k][i] = j; }
       }
     }
   }
-  let best = N - 1;
-  for (let i = N; i < P; i++) if (dp[N - 1][i] < dp[N - 1][best]) best = i;
-  const out = [];
-  for (let k = N - 1, i = best; k >= 0; i = from[k][i], k--) out.unshift(peaks[i]);
-  return out;
+  let best = -1, cost = Infinity, penalty = Infinity;
+  for (let i = N - 1; i < P; i++) {
+    if (dp[N - 1][i] === Infinity) continue;
+    let tail = 0;
+    for (let m = i + 1; m < P; m++) tail += tailCost(peaks[m] - peaks[i]);
+    if (dp[N - 1][i] + tail < cost) { cost = dp[N - 1][i] + tail; penalty = pen[N - 1][i] + tail; best = i; }
+  }
+  const picks = [];
+  for (let k = N - 1, i = best; k >= 0; i = from[k][i], k--) picks.unshift(peaks[i]);
+  return { picks, cost, penalty };
 }
+const resolveShots = (peaks, shots) => peaks.length > shots.length ? planShots(peaks, shots).picks : peaks.slice();
+const fitsPattern = (peaks, shots) => planShots(peaks, shots).penalty < 0.9;
 
 // ---------- scoring ----------
 const SCORE_WORDS = [
-  [/^(alpha|alfa|alphas|alfas|elfa|alva|alpa)$/, "A"],
+  [/^(alpha|alfa|alphas|alfas|elfa|alva|alpa|hit|hits)$/, "A"],
   [/^(charlie|charley|charly|charlies|charleys)$/, "C"],
   [/^(delta|deltas|delt)$/, "D"],
-  [/^(mike|mikes|mic|mics|mice)$/, "M"],
+  [/^(mike|mikes|mic|mics|mice|mikey|miss|misses|missed)$/, "M"],
 ];
+// a count directly before a score word ("three alpha"); homophones as speech recognition writes them
+const COUNTS = { one: 1, won: 1, two: 2, to: 2, too: 2, three: 3, free: 3, four: 4, for: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
 const WORD_NAME = { A: "alpha", C: "charlie", D: "delta", M: "mike" };
+const scoreLetter = w => (SCORE_WORDS.find(([re]) => re.test(w)) || [])[1];
+// "alpha alpha charlie", "two alpha one charlie", "all alpha", "all alpha except one charlie";
+// "all alpha" / "rest alpha" fills the shots not otherwise named (n in total)
 function parseScore(text, n) {
-  const t = text.toLowerCase().replace(/'s\b/g, "s").replace(/[^a-z ]/g, " ");
-  if (/\ball (alpha|alfa)s?\b/.test(t)) return new Array(n).fill("A");
+  const words = text.toLowerCase().replace(/'s\b/g, "s").replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
   const out = [];
-  for (const w of t.split(/\s+/)) for (const [re, c] of SCORE_WORDS) if (re.test(w)) { out.push(c); break; }
+  let count = null, fill = false;
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    if (w === "all" || w === "rest") {
+      let j = i + 1;
+      while (["of", "the", "rest"].includes(words[j])) j++;
+      if (scoreLetter(words[j] || "") === "A" && !/^hits?$/.test(words[j])) { fill = true; i = j; count = null; continue; }
+    }
+    if (/^\d+$/.test(w)) { count = +w; continue; }
+    if (w in COUNTS) { count = COUNTS[w]; continue; }
+    const c = scoreLetter(w);
+    if (c) for (let k = 0; k < Math.min(count ?? 1, 12); k++) out.push(c);
+    count = null;
+  }
+  if (fill) while (out.length < n) out.push("A");
   return out;
 }
-function scorePoints(words) {
-  const major = S.powerFactor === "major";
+function scorePoints(words, pf = S.powerFactor) {
+  const major = pf === "major";
   let p = 0;
   for (const w of words) p += w === "A" ? 5 : w === "C" ? (major ? 4 : 3) : w === "D" ? (major ? 2 : 1) : -10;
-  return Math.max(0, p);   // a stage score floors at zero
+  return Math.max(0, p);   // a stage score floors at zero (9.5.5)
 }
 
 // ---------- adaptive par ----------
-// Staircase per pattern: two passes in a row tighten par by a step, one fail loosens it.
+// Staircase per pattern and start: two passes in a row tighten par by a step, one fail loosens it.
 // A pass is every shot inside par and, when scored, no mike. The first reps set the start.
-const CAL_REPS = 3;
-const parStates = () => load("standby.par", {});
-function parState(key) { return parStates()[key] || { par: 0, streak: 0, cal: [], history: [] }; }
-function saveParState(key, st) { const all = parStates(); all[key] = st; save("standby.par", all); }
+let parCache = null;
+const parStates = () => parCache ??= load("standby.par", {});
+function parState(key) {
+  const st = parStates()[key] || {};
+  return { par: st.par || 0, streak: st.streak || 0, cal: st.cal || [], history: st.history || [] };
+}
+function saveParState(key, st) { parStates()[key] = st; save("standby.par", parCache); }
+// a draw and a shot from ready are different drills; holster keeps the plain pattern key
+const parKey = (drill, start) => drill.key + (start && start !== "holster" ? " @" + start : "");
 function parFor(drill, start) {
   if (S.parMode === "fixed") return S.par > 0 ? S.par : 0;
   if (S.parMode === "adaptive" && drill && !generated()) return parState(parKey(drill, start)).par;
   return 0;
 }
-// a draw and a shot from ready are different drills; holster keeps the plain pattern key
-const parKey = (drill, start) => drill.key + (start && start !== "holster" ? " @" + start : "");
-function updateAdaptive(key, total, pass) {
-  const st = parState(key), step = S.parStep > 0 ? S.parStep : 0.05;
-  let text;
+// one staircase step (pure): returns the new state and what to say
+function stepPar(st, total, pass, step, now = Date.now()) {
+  st = { ...st, cal: [...st.cal], history: [...st.history] };
   if (!st.par) {
     st.cal.push(total);
-    if (st.cal.length >= CAL_REPS) {
-      st.par = Math.max(0.3, Math.round(mean(st.cal) * 1.1 * 20) / 20);
-      st.cal = []; st.streak = 0;
-      text = `Par set to ${fmt(st.par)}.`;
-    } else text = `Setting par, ${NUM[CAL_REPS - st.cal.length]} to go.`;
-  } else {
-    st.history = st.history.concat({ at: Date.now(), par: st.par, pass }).slice(-50);
-    if (!pass) { st.par = Math.round((st.par + step) * 100) / 100; st.streak = 0; }
-    else if (++st.streak >= 2) { st.par = Math.max(0.3, Math.round((st.par - step) * 100) / 100); st.streak = 0; }
-    text = `Next par ${fmt(st.par)}.`;
+    if (st.cal.length < CAL_REPS) return { st, text: `Setting par, ${numWord(CAL_REPS - st.cal.length)} to go.` };
+    st.par = Math.max(MIN_PAR, Math.round(mean(st.cal) * 1.1 * 20) / 20);
+    st.cal = []; st.streak = 0;
+    return { st, text: `Par set to ${fmt(st.par)}.` };
   }
+  st.history = st.history.concat({ at: now, par: st.par, pass }).slice(-50);
+  if (!pass) { st.par = round2(st.par + step); st.streak = 0; }
+  else if (++st.streak >= 2) { st.par = Math.max(MIN_PAR, round2(st.par - step)); st.streak = 0; }
+  return { st, text: `Next par ${fmt(st.par)}.` };
+}
+function updateAdaptive(key, total, pass) {
+  const { st, text } = stepPar(parState(key), total, pass, S.parStep > 0 ? S.parStep : 0.05);
   saveParState(key, st);
   return text;
 }
 function renderParLine(key) {
-  const svg = $("parline");
   const h = key && S.parMode === "adaptive" ? parState(key).history.slice(-20) : [];
-  svg.toggleAttribute("hidden", h.length < 2);
+  $("parBox").hidden = h.length < 2;
   if (h.length < 2) return;
-  const W = 300, H = 36, pad = 4;
+  const svg = $("parline"), W = 300, H = 36, pad = 5;
   const lo = Math.min(...h.map(p => p.par)), hi = Math.max(...h.map(p => p.par));
   const x = i => pad + i * (W - 2 * pad) / (h.length - 1);
   const y = v => hi === lo ? H / 2 : pad + (hi - v) * (H - 2 * pad) / (hi - lo);
+  const passed = h.filter(p => p.pass).length, now = parState(key).par;
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("aria-label", `Par ${fmt(h[0].par)} to ${fmt(now)}, ${passed} of ${h.length} passed`);
+  // pass: filled dot; fail: a cross, so it doesn't rely on colour
   svg.innerHTML = `<polyline fill="none" stroke="var(--muted)" stroke-width="1.5" vector-effect="non-scaling-stroke" points="${h.map((p, i) => x(i) + "," + y(p.par)).join(" ")}"/>` +
-    h.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.par)}" r="2.5" fill="var(${p.pass ? "--ok" : "--warn"})"/>`).join("");
+    h.map((p, i) => p.pass ? `<circle cx="${x(i)}" cy="${y(p.par)}" r="3" fill="var(--ok)"/>`
+      : `<path d="M${x(i) - 3} ${y(p.par) - 3}l6 6m0 -6l-6 6" stroke="var(--warn)" stroke-width="2" vector-effect="non-scaling-stroke"/>`).join("");
+  $("parLabel").textContent = `Par ${fmt(now)} · ${passed}/${h.length} passed`;
 }
 
 // ---------- drill settings UI ----------
 const MODE_HELP = {
   course: "Open string: ends after silence, then the closing commands.",
   drill: "Fixed pattern: ends on the last expected shot.",
-  called: "A random course each rep, from the pool or generated from your targets, briefed with the start command.",
+  called: "A random course each rep, from a list or generated from your targets, briefed with the start command.",
 };
 for (const [name, pattern] of PRESETS) $("preset").add(new Option(name, pattern));
 $("preset").add(new Option("Custom", ""));
@@ -483,68 +606,84 @@ $("preset").addEventListener("change", () => {
   $("pattern").dispatchEvent(new Event("change"));
 });
 $("resetPar").addEventListener("click", () => {
-  if (confirm("Reset adaptive par for all patterns?")) { save("standby.par", {}); refreshDrillUi(); }
+  if (confirm("Reset adaptive par for all patterns?")) { parCache = {}; save("standby.par", parCache); refreshDrillUi(); }
 });
 
-let drillError = null;
+// the parsed settings, updated whenever a setting changes
+let plan = { src: null, error: null };
+function computePlan() {
+  try { plan = { src: currentSource(), error: null }; } catch (e) { plan = { src: null, error: e.message }; }
+}
+const setSig = () => SET_KEYS.map(k => S[k]).join("|");
+
 function refreshDrillUi() {
+  computePlan();
   for (const el of document.querySelectorAll("[data-modes]")) el.hidden = !el.dataset.modes.split(" ").includes(S.mode);
+  for (const el of document.querySelectorAll("[data-from]")) el.hidden = el.dataset.from !== S.calledFrom;
   for (const el of document.querySelectorAll("[data-par]")) el.hidden = el.dataset.par !== S.parMode;
   for (const el of document.querySelectorAll("[data-score]")) el.hidden = !S.score;
+  for (const el of document.querySelectorAll("[data-reps]")) el.hidden = !(S.reps > 1);
   $("modeHelp").textContent = MODE_HELP[S.mode];
-  for (const el of document.querySelectorAll("[data-from]")) el.hidden = el.dataset.from !== S.calledFrom;
+  const adaptive = $("parMode").querySelector("[value=adaptive]");
+  adaptive.textContent = S.mode === "course" ? "Adaptive (Drill/Called only)" : "Adaptive";
   $("parHelp").textContent = S.parMode !== "adaptive" ? "" : S.mode === "course"
     ? "Adaptive par needs Drill or Called mode."
     : generated() ? "Adaptive par is kept per pattern, and generated courses rarely repeat, so it's off for them. Fixed par works."
-    : `Two passes in a row: par −step. One fail: par +step. A pass is every shot inside par with no mike. The first ${NUM[CAL_REPS]} reps of a pattern set its starting par.`;
-  drillError = null;
-  let info = "", src = null;
-  try { src = currentSource(); } catch (e) { drillError = e.message; }
-  if (drillError) info = `<span class="err">${escapeHtml(drillError)}</span>`;
+    : `Two passes in a row: par −step. One fail: par +step. A pass is every shot inside par with no mike. The first ${numWord(CAL_REPS)} reps of a pattern set its starting par.`;
+  $("voiceNote").textContent = SR ? "Listen for “restart”, “continue”, “not ready”, scores …"
+    : "Voice recognition isn't available in this browser: use the buttons. Briefings continue by themselves.";
+
+  const field = S.mode === "drill" ? "pattern" : generated() ? "targets" : "pool";
+  for (const id of ["pattern", "pool", "targets"]) $(id).setAttribute("aria-invalid", String(!!plan.error && id === field));
+  const src = plan.src;
+  let info = "";
+  if (plan.error) info = `<span class="err">${escapeHtml(plan.error)}</span>`;
   else if (src && src.inv) {
     const [lo, hi] = courseRange(src.inv);
-    info = `<span class="muted">${src.inv.P} paper, ${src.inv.S} steel · ${lo === hi ? lo : `${lo}–${hi}`} targets per course · e.g. ${generateCourse(src.inv).key}</span>`;
-  } else if (src && S.mode === "drill") info = `<span class="muted">${src.list[0].key} · ${src.list[0].n} shot${src.list[0].n > 1 ? "s" : ""}</span>`;
+    const swapped = S.courseMin > S.courseMax ? " (min is above max)" : "";
+    info = `<span class="muted">${src.inv.P} paper, ${src.inv.S} steel · ${lo === hi ? lo : `${lo}–${hi}`} targets per course${swapped} · e.g. ${generateCourse(src.inv).key}</span>`;
+  } else if (src && S.mode === "drill") info = `<span class="muted">${src.list[0].key} · ${src.list[0].n} ${plural(src.list[0].n, "shot")}</span>`;
   else if (src) {
     const counts = src.list.map(d => d.n);
     const dup = counts.some((c, i) => counts.indexOf(c) !== i);
-    info = `<span class="muted">${src.list.length} pattern${src.list.length > 1 ? "s" : ""}: ${counts.join(", ")} shots.` +
-      (dup ? " Some share a shot count: the count is all that's checked, so a mix-up between those goes unnoticed." : "") + "</span>";
+    info = `<span class="muted">${src.list.length} ${plural(src.list.length, "pattern")}: ${counts.join(", ")} shots.` +
+      (dup ? " Patterns with the same shot count can't be told apart: the timer only checks the count." : "") + "</span>";
   }
   $("drillInfo").innerHTML = info;
   if (state === "idle") {
     $("drillLine").textContent = drillLine();
-    $("start").disabled = !!drillError;
-    if ($("status").textContent === "Idle") $("hint").textContent = idleHint();
-    const fixedStart = S.startPos !== "random";
-    renderParLine(S.mode === "drill" && !drillError && fixedStart ? parKey(parsePattern(S.pattern), S.startPos) : null);
+    if (statusText === "Idle") $("hint").textContent = idleHint();
+    renderParLine(S.mode === "drill" && src && S.startPos !== "random" ? parKey(src.list[0], S.startPos) : null);
   }
+  renderButtons();
 }
 function drillLine(drill, rep, reps, start) {
-  const parts = [];
   const where = start || S.startPos;
-  if (drill) parts.push(drill.key);
-  else if (S.mode === "drill" && !drillError) parts.push(parsePattern(S.pattern).key);
-  else if (S.mode === "called") parts.push("Called");
+  const shown = drill || (S.mode === "drill" && plan.src ? plan.src.list[0] : null);
+  const parts = [];
+  if (shown) parts.push(shown.key);
+  else if (S.mode === "called") parts.push(generated() ? "Generated" : "Called");
   if (where !== "holster") parts.push(where === "random" ? "random start" : STARTS[where].name.toLowerCase());
   if (S.mode === "course") return parts.join(" · ");
   if (reps > 1) parts.push(`rep ${rep + 1}/${reps}`);
-  else if (pending) parts.push(`paused at rep ${pending.rep + 1}`);
-  const par = drill ? parFor(drill, start)
-    : S.mode === "drill" && !drillError && where !== "random" ? parFor(parsePattern(S.pattern), where)
-    : S.parMode === "fixed" ? S.par : 0;
+  else if (pending) parts.push(`paused at rep ${pending.rep + 1}/${pending.reps}`);
+  const par = shown && where !== "random" ? parFor(shown, where) : S.parMode === "fixed" ? S.par : 0;
   if (par) parts.push(`par ${fmt(par)}`);
   return parts.join(" · ");
 }
-function escapeHtml(t) { return t.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]); }
 
-// ---------- UI ----------
-function setStatus(text, hint = "") { $("status").textContent = text; $("hint").textContent = hint; }
+// ---------- display ----------
+let statusText = "Idle";
+function setStatus(text, hint = "") { statusText = text; $("status").textContent = text; $("hint").textContent = hint; }
 function setBig(text) { $("big").textContent = text; $("big").style.fontSize = ""; }
-// the course mnemonic ("T P S P") in the big display, shrunk to fit one line
+// the course mnemonic ("T P S P") in the big display, shrunk to fit one line (monospace: ~0.6em per character)
 function setMnemonic(text) {
   $("big").textContent = text;
-  $("big").style.fontSize = `min(4.2rem, ${(100 / (text.length * 0.65)).toFixed(2)}cqi)`;   // monospace: ~0.6em per character
+  $("big").style.fontSize = `min(var(--big-max), ${(100 / (text.length * 0.65)).toFixed(2)}cqi)`;
+}
+// "draw 0.98", "split 0.24", "transition 0.31" as a grid; old log entries have no labels
+function gapsHtml(hits, labels) {
+  return hits.map((h, i) => `<span><i>${labels ? labels[i] || "extra" : i ? "split" : "draw"}</i>${fmt(i ? h - hits[i - 1] : h)}</span>`).join("");
 }
 function updateThresholdUi() {
   $("thrOut").textContent = S.threshold + " dB";
@@ -557,28 +696,27 @@ function flashHit() {
   clearTimeout(meterHitTimer);
   meterHitTimer = setTimeout(() => $("meter").classList.remove("hit"), 120);
 }
-// "draw 0.98 · split 0.24 · transition 0.31"
-function gapText(hits, labels) {
-  return hits.map((h, i) => `${labels ? labels[i] || "extra" : i ? "split" : "draw"} ${fmt(i ? h - hits[i - 1] : h)}`).join(" · ");
-}
 
 // ---------- audio ----------
-let ctx, stream, source, detector, sink, workletReady = false;
+// One worklet, two inputs: shots arrive with the beep frequency notched out, so a shot fired while
+// a beep plays is still heard; beeps arrive through a band-pass, so their onset is still measured.
+let ctx, stream, source, detector, sink, filters = [];
+let workletPromise = null, micPromise = null;
+let lastLoud = 0;   // context time of the last shot-input level report above threshold
 const WORKLET = `
 class HitDetector extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.thr = 0.12; this.refr = 0.08; this.lastAbove = -1; this.peak = 0; this.lastPost = 0;
+    this.thr = 0.12; this.refr = 0.08; this.lastAbove = -1; this.beepAbove = -1; this.peak = 0; this.lastPost = 0;
     this.port.onmessage = e => {
       if (e.data.threshold != null) this.thr = e.data.threshold;
       if (e.data.refractory != null) this.refr = e.data.refractory;
     };
   }
   process(inputs) {
-    const ch = inputs[0] && inputs[0][0];
-    if (!ch) return true;
-    for (let i = 0; i < ch.length; i++) {
-      const v = Math.abs(ch[i]);
+    const shot = inputs[0] && inputs[0][0], beep = inputs[1] && inputs[1][0];
+    if (shot) for (let i = 0; i < shot.length; i++) {
+      const v = Math.abs(shot[i]);
       if (v > this.peak) this.peak = v;
       if (v >= this.thr) {
         const t = currentTime + i / sampleRate;
@@ -587,54 +725,83 @@ class HitDetector extends AudioWorkletProcessor {
         this.lastAbove = t;
       }
     }
-    if (currentTime - this.lastPost > 0.05) { this.port.postMessage({ peak: this.peak }); this.peak = 0; this.lastPost = currentTime; }
+    if (beep) for (let i = 0; i < beep.length; i++) {
+      if (Math.abs(beep[i]) >= this.thr) {
+        const t = currentTime + i / sampleRate;
+        if (t - this.beepAbove >= 0.15) this.port.postMessage({ beep: t });
+        this.beepAbove = t;
+      }
+    }
+    if (currentTime - this.lastPost > 0.05) { this.port.postMessage({ peak: this.peak, t: currentTime }); this.peak = 0; this.lastPost = currentTime; }
     return true;
   }
 }
 registerProcessor("hit-detector", HitDetector);`;
 
-async function openMic() {
-  if (stream) return;
-  stream = await navigator.mediaDevices.getUserMedia({
-    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-  });
-  if (!workletReady) {
-    const url = URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" }));
-    await ctx.audioWorklet.addModule(url);
-    workletReady = true;
-  }
-  source = ctx.createMediaStreamSource(stream);
-  detector = new AudioWorkletNode(ctx, "hit-detector");
-  sink = ctx.createGain(); sink.gain.value = 0;    // keeps the node pulled without playing the mic
-  source.connect(detector).connect(sink).connect(ctx.destination);
-  detector.port.onmessage = e => {
-    if (e.data.peak != null) $("meter").querySelector("i").style.width = levelPct(e.data.peak) + "%";
-    if (e.data.hit != null) onHit(e.data.hit);
-  };
-  applyDetector();
+// one mic pipeline at a time; a stop while the permission prompt is open leaves nothing behind
+function openMic() {
+  if (stream) return Promise.resolve();
+  return micPromise ??= (async () => {
+    try {
+      const st = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      });
+      if (state !== "running" && state !== "test") { st.getTracks().forEach(t => t.stop()); throw new Error("Cancelled."); }
+      await (workletPromise ??= ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" })))
+        .catch(e => { workletPromise = null; throw e; }));
+      stream = st;
+      source = ctx.createMediaStreamSource(stream);
+      detector = new AudioWorkletNode(ctx, "hit-detector", { numberOfInputs: 2 });
+      // the beep is a sine, but a phone speaker adds harmonics: notch those too
+      filters = [1, 2, 3].map(h => Object.assign(ctx.createBiquadFilter(), { type: "notch" }));
+      filters.forEach((f, i) => { f.frequency.value = BEEP_HZ * (i + 1); f.Q.value = 2; });
+      const band = Object.assign(ctx.createBiquadFilter(), { type: "bandpass" });
+      band.frequency.value = BEEP_HZ; band.Q.value = 10;
+      filters.push(band);
+      source.connect(filters[0]).connect(filters[1]).connect(filters[2]).connect(detector, 0, 0);
+      source.connect(band).connect(detector, 0, 1);
+      sink = ctx.createGain(); sink.gain.value = 0;    // keeps the node pulled without playing the mic
+      detector.connect(sink).connect(ctx.destination);
+      detector.port.onmessage = e => {
+        if (e.data.peak != null) {
+          $("meter").querySelector("i").style.width = levelPct(e.data.peak) + "%";
+          if (e.data.peak >= dbToAmp(S.threshold)) lastLoud = e.data.t;
+        }
+        if (e.data.hit != null) onHit(e.data.hit);
+        if (e.data.beep != null) onBeep(e.data.beep);
+      };
+      applyDetector();
+    } finally { micPromise = null; }
+  })();
 }
 function closeMic() {
   if (!stream) return;
-  try { source.disconnect(); detector.disconnect(); sink.disconnect(); } catch {}
+  try { source.disconnect(); detector.disconnect(); sink.disconnect(); filters.forEach(f => f.disconnect()); } catch {}
   stream.getTracks().forEach(t => t.stop());
-  stream = source = detector = sink = null;
+  stream = source = detector = sink = null; filters = [];
   $("meter").querySelector("i").style.width = "0";
 }
 function applyDetector() {
   updateThresholdUi();
   if (detector) detector.port.postMessage({ threshold: dbToAmp(S.threshold), refractory: S.refractory });
 }
+// wait until the mic has been quiet for a moment (the tail of our own voice)
+async function waitQuiet(alive, quiet = 0.3, max = 3) {
+  const until = ctx.currentTime + max;
+  while (alive() && ctx.currentTime < until && ctx.currentTime - lastLoud < quiet) await sleep(30);
+}
 function beepAt(t, dur = BEEP, hz = BEEP_HZ) {
   const osc = ctx.createOscillator(), gain = ctx.createGain();
-  osc.type = "square"; osc.frequency.value = hz;
+  osc.type = "sine"; osc.frequency.value = hz;   // a pure tone, so the shot detector can notch it out
   gain.gain.setValueAtTime(0.0001, t);
-  gain.gain.linearRampToValueAtTime(0.5, t + 0.005);
-  gain.gain.setValueAtTime(0.5, t + dur - 0.01);
+  gain.gain.linearRampToValueAtTime(0.8, t + 0.005);
+  gain.gain.setValueAtTime(0.8, t + dur - 0.01);
   gain.gain.linearRampToValueAtTime(0.0001, t + dur);
   osc.connect(gain).connect(ctx.destination);
   osc.start(t); osc.stop(t + dur + 0.02);
   return gain;   // disconnect to cancel
 }
+function cancelBeeps(s) { for (const g of s.beeps || []) try { g.disconnect(); } catch {} }
 function endTone() {
   const t = ctx.currentTime + 0.05;
   beepAt(t, 0.09, 1200); beepAt(t + 0.15, 0.09, 1200);
@@ -648,17 +815,23 @@ function pickVoice() {
   voice = vs.find(v => /en[-_]US/i.test(v.lang)) || vs.find(v => /^en/i.test(v.lang)) || null;
 }
 if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+// resolves when the voice has finished: onend, or (Android sometimes never fires it) when the
+// engine reports it's no longer speaking; a short tail lets the audio drain before anyone listens
 function speak(text) {
   return new Promise(resolve => {
-    if (!("speechSynthesis" in window)) return resolve();
+    if (!("speechSynthesis" in window) || !text) return resolve();
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     if (voice) u.voice = voice;
     u.lang = voice ? voice.lang : "en-US";
+    const t0 = Date.now();
     let done = false;
-    const finish = () => { if (!done) { done = true; resolve(); } };
+    const finish = () => { if (done) return; done = true; clearInterval(watch); setTimeout(resolve, 150); };
     u.onend = finish; u.onerror = finish;
-    setTimeout(finish, 1200 + text.length * 90);   // Android sometimes never fires onend
+    const watch = setInterval(() => {
+      const quiet = !speechSynthesis.speaking && !speechSynthesis.pending;
+      if ((quiet && Date.now() - t0 > 700) || Date.now() - t0 > 30000) finish();
+    }, 250);
     speechSynthesis.speak(u);
   });
 }
@@ -666,34 +839,63 @@ function speak(text) {
 // ---------- speech in ----------
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const canListen = () => !!(SR && S.voice);
+const VOICE = {
+  start: /\b(re ?start|start|resume|continue)\b|\bmake ready\b/,
+  hold: /\b(stop|hold|pause|wait|not ready|not yet)\b/,
+  go: /\b(continue|proceed|go ahead|carry on)\b/,
+  repeat: /\b(repeat|again)\b/,
+  next: /\b(next|skip)\b/,
+  redo: /\b(correction|again|redo|wrong)\b/,
+};
+// our own prompts, if the mic picks them up
+const SELF = /\bto (proceed|continue)\b|\bwhen ready\b|\bsay (restart|continue)\b/;
 // onText gets every alternative of every (interim) result; onFinal gets the alternatives of a final result
 function listen(onText, onFinal) {
   if (!canListen()) return () => {};
-  let stopped = false, rec;
+  let stopped = false, rec, errors = 0;
+  const t0 = Date.now();
   const begin = () => {
     rec = new SR();
     rec.lang = "en-US"; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 3;
     rec.onresult = e => {
+      errors = 0;
+      if (Date.now() - t0 < 600) return;   // still the tail of the prompt before it
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        const alts = Array.from(e.results[i], alt => alt.transcript.toLowerCase());
+        const alts = Array.from(e.results[i], alt => alt.transcript.toLowerCase()).filter(t => t && !SELF.test(t));
+        if (!alts.length) continue;
         alts.forEach(t => onText(t));
         if (onFinal && e.results[i].isFinal) onFinal(alts);
       }
     };
-    rec.onerror = e => { if (e.error === "not-allowed" || e.error === "service-not-allowed") { stopped = true; setStatus(state === "idle" ? "Idle" : $("status").textContent, "Voice recognition blocked: use the buttons."); } };
-    rec.onend = () => { if (!stopped) setTimeout(() => { if (!stopped) begin(); }, 250); };
+    rec.onerror = e => {
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") { stopped = true; setStatus(statusText, "Voice recognition blocked: use the buttons."); }
+      else if (e.error !== "no-speech" && e.error !== "aborted") errors++;
+    };
+    // Android ends sessions often; restart, backing off while it keeps failing (offline)
+    rec.onend = () => { if (!stopped) setTimeout(() => { if (!stopped) begin(); }, Math.min(5000, 250 * 2 ** errors)); };
     try { rec.start(); } catch {}
   };
   begin();
   return () => { stopped = true; try { rec.abort(); } catch {} };
 }
+// listen for one phrase until a deadline; true if it was heard
+async function listenFor(re, ms, alive) {
+  let heard = false;
+  const stop = listen(t => { if (re.test(t)) heard = true; });
+  const until = Date.now() + ms;
+  while (!heard && alive() && Date.now() < until) await sleep(50);
+  stop();
+  return heard;
+}
 
-// ---------- state machine ----------
+// ---------- state ----------
 let state = "locked";   // locked | idle | test | running
-let run = 0;            // bumps on stop, cancels any running sequence
+let run = 0;            // bumps on stop/restart: every running flow checks alive() and bows out
+let string = null;      // the string being timed
+let pending = null;     // a set paused by voice; the next start resumes it
+let activeSet = null;   // the set being shot, for Restart
+let confirmGo = null;   // set while a briefing waits for "continue"
 let stopListening = () => {};
-let string = null;
-let pending = null;     // a set paused by voice: { rep, results, lastKey }
 let wakeLock = null;
 
 async function keepAwake() {
@@ -701,285 +903,363 @@ async function keepAwake() {
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && state !== "locked") keepAwake(); });
 
+function renderButtons() {
+  const start = $("start");
+  start.textContent = state === "running" ? (confirmGo ? "Continue" : "Restart rep")
+    : pending ? `Resume set (${pending.rep + 1}/${pending.reps})` : "Start";
+  start.disabled = state === "locked" || state === "test" || (state === "idle" && !!plan.error);
+  $("stop").disabled = state !== "running";
+  $("test").disabled = state === "running";
+  $("test").textContent = state === "test" ? "End test" : "Mic test";
+  document.body.classList.toggle("running", state === "running");
+}
 function idleHint() {
-  if (drillError) return "Fix the drill below.";
-  const say = canListen() ? "Say “restart” or tap Start" : "Tap Start";
+  if (plan.error) return "Fix the drill settings below.";
+  if (!SR) return "Tap Start. (No voice recognition in this browser.)";
+  const say = S.voice ? "Say “restart” or tap Start" : "Tap Start";
   return pending ? `Set paused. ${say} to continue.` : say + ".";
 }
 function idleListen() {
   stopListening();
-  stopListening = listen(t => {
-    if (state === "idle" && /\b(re ?start|start|resume|continue)\b|make ready/.test(t)) startSession();
-  });
+  stopListening = listen(t => { if (state === "idle" && VOICE.start.test(t)) startSession(); });
 }
 // keep: leave the last result (or error) on screen instead of showing "Idle"
 function goIdle(keep = false) {
   state = "idle";
-  confirmGo = null; $("start").textContent = "Start";
-  $("stop").disabled = true; $("test").disabled = false;
-  $("test").textContent = "Mic test";
+  confirmGo = null;
+  closeMic();
   if (!keep) setStatus("Idle", idleHint());
   refreshDrillUi();
   idleListen();
 }
+function abortRun() {
+  run++;
+  if (string) cancelBeeps(string);
+  string = null; confirmGo = null;
+  closeMic(); hideScorepad();
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+}
 
-async function startSession() {
-  if (state !== "idle" || drillError) return;
-  let src;
-  try { src = currentSource(); } catch { return; }
+// ---------- sets ----------
+function startSession() {
+  if (state !== "idle" || plan.error) return false;
+  beginSet();
+  return true;
+}
+async function beginSet() {
+  const src = plan.src;
   const my = ++run;
   const alive = () => my === run;
   state = "running";
   stopListening(); stopListening = () => {};
-  $("start").textContent = "Restart"; $("stop").disabled = false; $("test").disabled = true;
-
   const reps = src ? Math.max(1, Math.round(S.reps) || 1) : 1;
-  const set = activeSet = pending || { rep: 0, results: [], lastKey: null };
+  const set = activeSet = pending && pending.sig === setSig() ? pending : { rep: 0, reps, results: [], lastKey: null, sig: setSig() };
   pending = null;
+  renderButtons();
   let first = true, keep = true;
   while (alive() && set.rep < reps) {
-    let drill = null;
-    if (src) { drill = nextDrill(src, set.lastKey); set.lastKey = drill.key; }
+    const drill = src ? nextDrill(src, set.lastKey) : null;
+    if (drill) set.lastKey = drill.key;
     const start = pickStart();
     $("drillLine").textContent = drillLine(drill, set.rep, reps, start);
     renderParLine(drill && parKey(drill, start));
-    const r = await runString({ first, drill, start }, alive);
+    const r = await runString({ first, drill, start, set }, alive);   // a finished rep counts itself into the set
     first = false;
     if (!alive()) return;
     if (r === "error") break;
     if (r === "hold") { if (reps > 1) pending = set; keep = false; break; }
-    if (r.early) {           // the rep is shot again
-      if (reps === 1) break;
-    } else {
-      set.results.push(r);
-      set.rep++;
+    if (r.early && reps === 1) break;   // otherwise the rep is shot again
+    if (set.rep < reps) {
+      const hold = await repPause(alive);
+      if (!alive()) return;
+      if (hold) { pending = set; keep = false; break; }
     }
-    if (set.rep < reps && await repPause(alive)) { pending = set; keep = false; break; }
   }
   if (!alive()) return;
-  if (!pending && set.results.length > 1) await setSummary(set.results, !src.list || src.list.length > 1 || S.startPos === "random", alive);
+  activeSet = null;
+  const mixed = !src || !src.list || src.list.length > 1 || S.startPos === "random";
+  if (!pending && set.results.length > 1) await setSummary(set.results, mixed, alive);
   if (alive()) goIdle(keep);
 }
-
 // Restart (button while running, or "next" during the briefing): drop the current rep and start
-// again at once; a set keeps its place, and Called mode draws a new pattern
-let activeSet = null;
-function abortRun() {
-  run++; string = null; closeMic(); hideScorepad(); confirmGo = null;
-  if ("speechSynthesis" in window) speechSynthesis.cancel();
-}
+// again at once. An unfinished set keeps its place (and Called mode draws a new pattern), unless
+// its settings changed meanwhile.
 function restart() {
   if (state !== "running") return;
   const set = activeSet;
   abortRun();
-  pending = set;   // keeps the rep count and the last pattern, so Called mode draws a different one
+  pending = set && set.rep < set.reps && set.sig === setSig() ? set : null;
   state = "idle";
-  startSession();
+  if (!startSession()) goIdle(true);
 }
-
-// read the briefing and wait, however long, for "continue" (or the Continue button); "repeat" reads it
-// again. Listening starts only after the announcer has finished, or it would hear its own "continue".
-let confirmGo = null;
-async function confirmBriefing(brief, alive) {
-  let go = false, again = true, stop = () => {};
-  confirmGo = () => { go = true; };
-  $("start").textContent = "Continue";
-  const ask = canListen() ? "Say continue to proceed." : "Tap continue to proceed.";
-  setStatus(brief, canListen() ? "Say “continue” or tap Continue. “Repeat” reads it again, “next” gives another." : "Tap Continue.");
-  while (!go && alive()) {
-    if (again) {
-      again = false; stop();
-      await speak(`${brief} ${ask}`);
-      if (go || !alive()) break;
-      stop = listen(t => {
-        if (/\b(continue|proceed|go ahead|carry on)\b/.test(t)) go = true;
-        else if (/\b(repeat|again)\b/.test(t)) again = true;
-        else if (/\b(next|skip)\b/.test(t)) setTimeout(restart);
-      });
-    }
-    await sleep(50);
-  }
-  stop();
-  if (!alive()) return;   // stopped or restarted: the buttons belong to whoever is running now
-  confirmGo = null; $("start").textContent = "Restart";
-}
-
 async function repPause(alive) {
-  let hold = false;
-  const stop = listen(t => { if (/\b(stop|hold|pause|wait)\b|not ready/.test(t)) hold = true; });
   const secs = Math.max(2, Math.round(S.repInterval) || DEFAULTS.repInterval);
   setStatus(`Next in ${secs}`, canListen() ? "Say “stop” to pause the set." : "");
+  const t0 = Date.now();
   await speak(`Next in ${secs}.`);
-  const until = Date.now() + secs * 1000;
-  while (!hold && alive() && Date.now() < until) await sleep(50);
-  stop();
+  if (!alive()) return false;
+  const hold = await listenFor(VOICE.hold, Math.max(0, secs * 1000 - (Date.now() - t0)), alive);
   if (hold && alive()) await speak("Set paused. Say restart to continue.");
-  return hold;
+  return hold && alive();
 }
 
-// one string: commands, beep, shots, results. Returns a result, "hold" or "error".
-async function runString({ first, drill, start }, alive) {
-  $("shots").textContent = "";
+// ---------- one string ----------
+// commands, beep, shots, results. Returns a result, "hold", "error" or null (cancelled).
+async function runString({ first, drill, start, set }, alive) {
+  $("shots").innerHTML = ""; $("result").textContent = "";
   if (drill || start !== "holster") setMnemonic([STARTS[start].mark, drill && drill.marks].filter(Boolean).join(" "));
   else setBig("0.00");
 
-  // briefing: "From table. Paper, paper, steel. Make ready." The start is said when it isn't the
-  // holster default, or always when random. Random starts and called patterns change every rep,
-  // so those reps all get a briefing.
-  if (first || S.startPos === "random" || S.mode === "called") {
-    const command = startCommand(start);
-    const from = start !== "holster" || S.startPos === "random" ? STARTS[start].from : "";
-    const cof = drill ? cap(drill.call) : "";
-    const brief = [from, cof].filter(Boolean).join(" ");
-    if (brief && S.confirm) {
-      await confirmBriefing(brief, alive);
-      if (!alive()) return null;
-    }
-    setStatus(command, brief || "Get into your start position.");
-    await speak(brief && !S.confirm ? `${brief} ${command}.` : command);
-    await sleep(S.prepTime * 1000);
-    if (!alive()) return null;
-  }
-
-  setStatus("Are you ready?", canListen() ? "Say “not ready” to hold." : "");
-  await speak("Are you ready?");
-  if (!alive()) return null;
-  let notReady = false;
-  if (canListen() && S.readyWindow > 0) {
-    const stop = listen(t => { if (/not ready|not yet|wait|hold/.test(t)) notReady = true; });
-    const until = Date.now() + S.readyWindow * 1000;
-    while (Date.now() < until && !notReady && alive()) await sleep(50);
-    stop();
-  } else {
-    await sleep(800);
-  }
-  if (!alive()) return null;
-  if (notReady) {
-    setStatus("Not ready", "Say “restart” when ready.");
-    await speak("Okay. Say restart when ready.");
-    return "hold";
-  }
+  // random starts and called patterns change every rep, so those reps all get a briefing
+  if ((first || S.startPos === "random" || S.mode === "called") && !await briefing(drill, start, alive)) return null;
+  const ready = await readyCheck(alive);
+  if (ready !== "ok") return ready;
 
   try { await openMic(); } catch (err) {
+    if (!alive()) return null;
     setStatus("Microphone unavailable", String(err && err.message || err));
     return "error";
   }
   if (!alive()) return null;
   setStatus("Standby", drill ? drill.key : "");
   await speak("Standby");
+  await waitQuiet(alive);
   if (!alive()) return null;
 
-  const lo = Math.min(S.delayMin, S.delayMax), hi = Math.max(S.delayMin, S.delayMax);
-  const armFrom = ctx.currentTime + 0.25;           // ignore the tail of "Standby"
-  const T = ctx.currentTime + lo + Math.random() * (hi - lo);
-  const par = parFor(drill, start);
-  const s = string = { T, armFrom, onset: null, hits: [], early: false, par, drill, start };
-  beepAt(T);
-  if (par) s.parBeep = beepAt(T + par, 0.2);
-
-  if (drill) await waitForDrillEnd(s, alive);
-  else {
-    // wait for the string to end; with closing commands, a shot right after
-    // "If you are finished" means the shooter wasn't, so keep timing
-    while (alive()) {
-      await waitForSilence(s, alive);
-      if (!alive() || s.early || !S.closing) break;
-      const before = s.hits.length;
-      setStatus("If you are finished", "Shoot again to continue the string.");
-      s.muted = true;                                // our own voice is not a shot
-      await speak("If you are finished, unload and show clear.");
-      s.muted = false;
-      s.quietUntil = ctx.currentTime + 0.3;          // speech tail
-      const until = ctx.currentTime + RESUME;
-      while (alive() && ctx.currentTime < until && s.hits.length === before) await sleep(50);
-      if (s.hits.length === before) { s.unloaded = true; break; }
-      setStatus("Continuing", "");
-    }
-  }
+  const s = armString(drill, start);
+  if (drill) await waitForDrillEnd(s, alive); else await waitOpenString(s, alive);
   if (!alive()) return null;
   string = null;
+  cancelBeeps(s);   // a par beep still to come
   closeMic();
-  if (s.parBeep && ctx.currentTime < s.T + s.par) try { s.parBeep.disconnect(); } catch {}   // done before par
   if (drill && !s.early) await endTone();
-  return finishString(s, alive);
+  return finishString(s, set, alive);
 }
 
-async function waitForSilence(s, alive) {
-  while (alive()) {
+// "From table. Paper, paper, steel. Make ready." The start is said when it isn't the holster
+// default, or always when random.
+async function briefing(drill, start, alive) {
+  const command = startCommand(start);
+  const from = start !== "holster" || S.startPos === "random" ? STARTS[start].from : "";
+  const brief = [from, drill ? cap(drill.call) : ""].filter(Boolean).join(" ");
+  if (brief && S.confirm) {
+    await confirmBriefing(brief, alive);
+    if (!alive()) return false;
+  }
+  setStatus(command, brief || "Get into your start position.");
+  await speak(brief && !S.confirm ? `${brief} ${command}.` : command);
+  await sleep(S.prepTime * 1000);
+  return alive();
+}
+
+// read the briefing and wait, however long, for "continue" (or the Continue button); "repeat" reads it
+// again, "next" draws another course. Listening starts only after the announcer has finished, or it
+// would hear its own "continue". Without voice recognition it continues by itself after a few seconds.
+async function confirmBriefing(brief, alive) {
+  const voiceOn = canListen();
+  let go = false, again = true, skipping = false, autoAt = Infinity, stop = () => {};
+  confirmGo = () => { go = true; };
+  renderButtons();
+  setStatus(brief, voiceOn ? "Say “continue” or tap Continue. “Repeat” reads it again, “next” gives another." : "Tap Continue, or wait: it continues by itself.");
+  while (!go && alive()) {
+    if (again) {
+      again = false; stop();
+      await speak(voiceOn ? `${brief} Say continue to proceed.` : brief);
+      if (go || !alive()) break;
+      if (voiceOn) stop = listen(t => {
+        if (VOICE.go.test(t)) go = true;
+        else if (VOICE.repeat.test(t)) again = true;
+        else if (VOICE.next.test(t) && !skipping) { skipping = true; setTimeout(() => { if (alive()) restart(); }); }
+      });
+      else autoAt = Date.now() + 4000;
+    }
+    if (Date.now() >= autoAt) go = true;
     await sleep(50);
-    if (s.early) return;
-    const now = ctx.currentTime;
-    if (now < s.T) continue;
-    const ref = s.onset ?? (s.T + guessLatency());
-    const last = s.hits.length ? ref + s.hits[s.hits.length - 1] : ref;
-    const limit = s.hits.length ? S.silence : S.maxWait;
-    if (now - last > limit && now - ref > (s.par || 0) + 0.3) return;
-    if (s.hits.length === 0) setBig(fmt(Math.max(0, now - ref)));
   }
+  stop();
+  if (!alive()) return;   // stopped or restarted: the buttons belong to whoever runs now
+  confirmGo = null;
+  renderButtons();
 }
 
-// a drill ends shortly after the last expected shot; with shots missing, on silence
-async function waitForDrillEnd(s, alive) {
-  const N = s.drill.n;
-  while (alive()) {
-    await sleep(30);
-    if (s.early) return;
-    const now = ctx.currentTime;
-    if (now < s.T) continue;
-    const ref = s.onset ?? (s.T + guessLatency());
-    const n = s.hits.length;
-    const last = n ? ref + s.hits[n - 1] : ref;
-    if (n >= N) {
-      // a reload makes noise, so wait for real silence; otherwise end a fixed time after the Nth shot
-      if (s.drill.loose ? now - last >= LOOSE_GRACE : now - (ref + s.hits[N - 1]) >= GRACE) return;
-    } else if (now - last > (n ? S.silence : S.maxWait)) return;
-    if (!n) setBig(fmt(Math.max(0, now - ref)));
-  }
+async function readyCheck(alive) {
+  setStatus("Are you ready?", canListen() ? "Say “not ready” to hold." : "");
+  await speak("Are you ready?");
+  if (!alive()) return null;
+  let hold = false;
+  if (canListen() && S.readyWindow > 0) hold = await listenFor(VOICE.hold, S.readyWindow * 1000, alive);
+  else await sleep(800);
+  if (!alive()) return null;
+  if (!hold) return "ok";
+  setStatus("Not ready", "Say “restart” when ready.");
+  await speak("Okay. Say restart when ready.");
+  return alive() ? "hold" : null;
 }
 
-function guessLatency() { return (ctx.outputLatency || 0) + (ctx.baseLatency || 0) + 0.02; }
+// Beep round trips measured this session: when the mic heard the beep minus when it was scheduled.
+// Until one is heard, the estimate is the output latency the browser reports.
+const rtts = [];
+const guessLatency = () => (ctx.outputLatency || 0) + (ctx.baseLatency || 0) + 0.02;
+const rttEstimate = () => rtts.length ? median(rtts) : guessLatency();
+const refTime = s => s.onset ?? s.T + rttEstimate();      // the beep as the mic hears it: times run from here
+const hitsOf = s => s.raw.map(t => t - refTime(s));
 
+function armString(drill, start) {
+  const lo = Math.min(S.delayMin, S.delayMax), hi = Math.max(S.delayMin, S.delayMax);
+  const now = ctx.currentTime;
+  const T = now + lo + Math.random() * (hi - lo);
+  const par = parFor(drill, start);
+  const s = string = { T, armFrom: now, onset: null, raw: [], beepsHeard: [], early: false, par, drill, start, mode: S.mode, beeps: [beepAt(T)] };
+  if (par) s.beeps.push(beepAt(T + par, PAR_BEEP));
+  return s;
+}
+
+function onBeep(t) {
+  const s = string;
+  if (!s) return;
+  s.beepsHeard.push(t);
+  if (s.onset === null && t >= s.T - 0.02 && t <= s.T + 0.8) {
+    s.onset = t;
+    rtts.push(t - s.T); if (rtts.length > 9) rtts.shift();
+    // a "shot" counted before the beep was really heard was an early start
+    if (s.raw.some(x => x < t - 0.03)) { s.raw = s.raw.filter(x => x >= t - 0.03); if (S.early) { s.early = true; cancelBeeps(s); } }
+  }
+}
 function onHit(t) {
   flashHit();
   if (state === "test") { testHit(t); return; }
   const s = string;
   if (!s || s.muted || t < (s.quietUntil || 0)) return;
-  if (t < s.T) {                                   // before the beep
-    if (S.early && t >= s.armFrom) s.early = true;
+  const heard = s.onset ?? s.T + rttEstimate();
+  if (t < heard - 0.03) {                          // before the beep
+    if (S.early && t >= s.armFrom && !s.early) { s.early = true; cancelBeeps(s); }
     return;
   }
-  if (s.onset === null && t <= s.T + 0.35) { s.onset = t; return; }   // the mic hearing our own beep
-  const ref = s.onset ?? (s.T + guessLatency());
-  const x = t - ref;
-  if (x < BEEP + 0.08) return;                     // beep tail
-  // the first peak right at par is the par beep; shots around par still count
-  if (s.par && !s.parHeard && x >= s.par - 0.02 && x < s.par + 0.1) { s.parHeard = true; return; }
-  s.hits.push(x);
-  setBig(fmt(x));
-  const labels = shotLabels(s.drill, s.start, s.hits.length);
-  $("shots").textContent = (s.drill ? `${s.hits.length}/${s.drill.n} · ` : `${s.hits.length} · `) + gapText(s.hits, labels);
+  if (s.beepsHeard.some(b => t >= b - 0.005 && t < b + 0.03)) return;   // a beep onset leaking past the notch
+  s.raw.push(t);
+  const hits = hitsOf(s);
+  setBig(fmt(hits[hits.length - 1]));
+  $("shots").innerHTML = gapsHtml(hits, shotLabels(s.drill, s.start, hits.length));
+  $("result").textContent = s.drill ? `${hits.length}/${s.drill.n}` : `${hits.length}`;
 }
 
-async function finishString(s, alive) {
+// clock state shared by the two waits
+function elapsed(s) {
+  const now = ctx.currentTime, ref = refTime(s), hits = hitsOf(s);
+  return { now, ref, hits, last: hits.length ? ref + hits[hits.length - 1] : ref, before: now < s.T };
+}
+// a course string ends after silence; with closing commands, a shot right after
+// "If you are finished" means the shooter wasn't, so timing goes on
+async function waitOpenString(s, alive) {
+  while (alive()) {
+    await waitForSilence(s, alive);
+    if (!alive() || s.early || !S.closing) return;
+    const before = s.raw.length;
+    setStatus("If you are finished", "Shoot again to continue the string.");
+    s.muted = true;                                // our own voice is not a shot
+    await speak("If you are finished, unload and show clear.");
+    await waitQuiet(alive);
+    s.muted = false;
+    s.quietUntil = ctx.currentTime;
+    const until = ctx.currentTime + RESUME;
+    while (alive() && ctx.currentTime < until && s.raw.length === before) await sleep(50);
+    if (s.raw.length === before) { s.unloaded = true; return; }
+    setStatus("Continuing", "");
+  }
+}
+async function waitForSilence(s, alive) {
+  while (alive()) {
+    await sleep(50);
+    if (s.early) return;
+    const { now, ref, hits, last, before } = elapsed(s);
+    if (before) continue;
+    if (now - last > (hits.length ? S.silence : S.maxWait) && now - ref > (s.par || 0) + 0.3) return;
+    if (!hits.length) setBig(fmt(Math.max(0, now - ref)));
+  }
+}
+// A drill ends shortly after its last expected shot, once the sounds heard fit the pattern (reload
+// noise can reach the shot count mid-reload); otherwise, or with shots missing, on silence.
+async function waitForDrillEnd(s, alive) {
+  const N = s.drill.n, grace = s.drill.loose ? LOOSE_GRACE : GRACE;
+  while (alive()) {
+    await sleep(30);
+    if (s.early) return;
+    const { now, ref, hits, last, before } = elapsed(s);
+    if (before) continue;
+    if (hits.length >= N && now - last >= grace && fitsPattern(hits, s.drill.shots)) return;
+    if (now - last > (hits.length ? S.silence : S.maxWait)) return;
+    if (!hits.length) setBig(fmt(Math.max(0, now - ref)));
+  }
+}
+
+// what the string measured (pure apart from reading the string)
+function measure(s) {
+  const drill = s.drill, peaks = hitsOf(s);
+  const hits = drill ? resolveShots(peaks, drill.shots) : peaks;
+  const n = hits.length, N = drill ? drill.n : n, extras = peaks.length - n;
+  const incomplete = n < N;
+  const labels = shotLabels(drill, s.start, n);
+  return {
+    drill, peaks, hits, n, N, extras, incomplete, labels,
+    gaps: hits.map((h, i) => ({ label: labels[i], t: i ? h - hits[i - 1] : h })),
+    first: n ? hits[0] : null, total: n ? hits[n - 1] : null,
+    splits: hits.slice(1).map((h, i) => h - hits[i]),
+    // the shot count is all that's checked of a called pattern; extras are expected around a reload
+    wrongCount: s.mode === "called" && (incomplete || (extras > 0 && !drill.loose)),
+    note: !s.onset && n ? "Beep not heard by the mic: times use an estimated latency." : "",
+  };
+}
+function judge(m, s, score) {
+  const hf = score && m.total ? score.points / m.total : null;
+  let pass = null, parText = "";
+  if (s.par && m.n && !m.incomplete) {
+    pass = !m.wrongCount && m.total <= s.par && !(score && score.words.includes("M"));
+    parText = m.wrongCount ? "Wrong shot count." : m.total > s.par ? "Over par." : pass ? "Inside par." : "Mike, rep failed.";
+  }
+  const headline = !m.n ? "No shots" : m.incomplete ? `${m.n} of ${m.N} shots` : m.wrongCount ? "Wrong shot count"
+    : pass === true ? "Inside par ✓" : pass === false ? (m.total > s.par ? "Over par ✗" : "Mike ✗")
+    : hf != null ? `HF ${fmt(hf)}` : "Done";
+  return { hf, pass, parText, headline };
+}
+function summaryText(m, s, v) {
+  const out = [];
+  if (!m.n) out.push("No shots detected.");
+  else if (m.drill) {
+    if (m.incomplete) out.push(s.mode === "called" ? `Called ${m.N}, heard ${m.n}.` : `${m.n} of ${m.N} shots heard.`);
+    else if (m.wrongCount) out.push(`Called ${m.N}, heard ${m.peaks.length}.`);   // the raw count: the extra was a shot
+    out.push(`Total ${fmt(m.total)}.`, `${cap(m.labels[0])} ${fmt(m.first)}.`);
+    for (const label of ["split", "transition", "reload", "movement"]) {
+      const ts = m.gaps.filter(g => g.label === label).map(g => g.t);
+      if (ts.length) out.push(`${ts.length > 1 ? "Average " + label : cap(label)} ${fmt(mean(ts))}.`);
+    }
+    if (m.extras && !m.wrongCount) out.push(`${cap(numWord(m.extras))} extra ${plural(m.extras, "sound")} ignored.`);
+  } else {
+    out.push(`${m.n} ${plural(m.n, "shot")}. ${cap(m.labels[0])} ${fmt(m.first)}.`);
+    if (m.splits.length) {
+      out.push(m.splits.length <= 5 ? `Splits ${m.splits.map(fmt).join(", ")}.`
+        : `Best split ${fmt(Math.min(...m.splits))}, worst ${fmt(Math.max(...m.splits))}.`);
+      out.push(`Total ${fmt(m.total)}.`);
+    }
+  }
+  if (v.hf != null) out.push(`Hit factor ${fmt(v.hf)}.`);
+  if (v.parText) out.push(v.parText);
+  return out.join(" ");
+}
+
+// A log entry (standby.log, newest first, LOG_KEEP kept):
+// { at, mode, pattern, start, parKey, n, N, first, splits, total, labels, par, pass, score, points, hf, extras, incomplete }
+// Older entries lack the later fields. The set summary also gets `gaps` (not stored).
+async function finishString(s, set, alive) {
   if (s.early) {
     setStatus("Early!", "Sound before the beep.");
     setBig("—");
     await speak("Early. Before the beep.");
     return { early: true };
   }
-  const drill = s.drill;
-  let hits = s.hits, extras = 0;
-  if (drill && hits.length > drill.n) { extras = hits.length - drill.n; hits = resolveShots(hits, drill.shots); }
-  const n = hits.length;
-  const incomplete = !!drill && n < drill.n;
-  const labels = shotLabels(drill, s.start, n);
-  const gaps = hits.map((h, i) => ({ label: labels[i], t: i ? h - hits[i - 1] : h }));
-  const first = n ? hits[0] : null;
-  const splits = hits.slice(1).map((h, i) => h - hits[i]);
-  const total = n ? hits[n - 1] : null;
-  if (n) { setBig(fmt(total)); $("shots").textContent = gapText(hits, labels); }
-  const note = !s.onset && n ? "Beep not heard by the mic: times use an estimated latency." : "";
-  setStatus(incomplete ? `${n} of ${drill.n} shots` : "Done", note);
+  const m = measure(s);
+  if (m.n) { setBig(fmt(m.total)); $("shots").innerHTML = gapsHtml(m.hits, m.labels); }
+  $("result").textContent = "";
+  setStatus(m.incomplete ? `${m.n} of ${m.N} shots` : "Done", m.note);
 
   if (s.unloaded) {                                // "If you are finished" was already said
     await sleep(Math.max(0, 3 - RESUME) * 1000);
@@ -990,82 +1270,62 @@ async function finishString(s, alive) {
     if (!alive()) return null;
   }
 
-  // the shot count is all we can check of a called pattern (extras are expected around a reload)
-  const wrongCount = S.mode === "called" && (incomplete || (extras > 0 && !drill.loose));
   let score = null;
-  if (S.score && n && !incomplete && !wrongCount) score = await askScore(n, alive);
+  if (S.score && m.n && !m.incomplete && !m.wrongCount) score = await askScore(m, alive);
   if (!alive()) return null;
-  const hf = score && total ? score.points / total : null;
-
-  let pass = null, parText = "";
-  if (s.par && n && !incomplete) {
-    pass = !wrongCount && total <= s.par && !(score && score.words.includes("M"));
-    parText = wrongCount ? "Wrong shot count." : total > s.par ? "Over par." : pass ? "Inside par." : "Mike, rep failed.";
-  }
-  if (drill && S.parMode === "adaptive" && !generated() && n && !incomplete) {
-    const t = updateAdaptive(parKey(drill, s.start), total, pass);
-    parText = (parText ? parText + " " : "") + t;
-    renderParLine(parKey(drill, s.start));
+  const v = judge(m, s, score);
+  if (m.drill && S.parMode === "adaptive" && !generated() && m.n && !m.incomplete) {
+    v.parText = [v.parText, updateAdaptive(parKey(m.drill, s.start), m.total, v.pass)].filter(Boolean).join(" ");
+    renderParLine(parKey(m.drill, s.start));
   }
 
-  const result = { at: Date.now(), mode: S.mode, pattern: drill ? drill.key : null, start: s.start, parKey: drill ? parKey(drill, s.start) : null, n, N: drill ? drill.n : n,
-    first, splits, total, labels, par: s.par, pass, score: score ? score.words.join("") : null,
-    points: score ? score.points : null, hf, extras, incomplete };
-  if (n) {
-    const log = load("standby.log", []); log.unshift(result); save("standby.log", log.slice(0, 100));
+  const result = {
+    at: Date.now(), mode: s.mode, pattern: m.drill ? m.drill.key : null, start: s.start,
+    parKey: m.drill ? parKey(m.drill, s.start) : null, n: m.n, N: m.N, first: m.first, splits: m.splits,
+    total: m.total, labels: m.labels, par: s.par, pass: v.pass, score: score ? score.words.join("") : null,
+    points: score ? score.points : null, hf: v.hf, extras: m.extras, incomplete: m.incomplete,
+  };
+  if (m.n) {
+    const log = load("standby.log", []); log.unshift(result); save("standby.log", log.slice(0, LOG_KEEP));
     renderLog();
   }
-  const summary = [];
-  if (!n) summary.push("No shots detected.");
-  else if (drill) {
-    if (incomplete) summary.push(S.mode === "called" ? `Called ${drill.n}, heard ${n}.` : `${n} of ${drill.n} shots heard.`);
-    else if (wrongCount) summary.push(`Called ${drill.n}, heard ${s.hits.length}.`);
-    summary.push(`Total ${fmt(total)}.`, `${cap(labels[0])} ${fmt(first)}.`);
-    for (const label of ["split", "transition", "reload", "movement"]) {
-      const ts = gaps.filter(g => g.label === label).map(g => g.t);
-      if (ts.length) summary.push(`${ts.length > 1 ? "Average " + label : cap(label)} ${fmt(mean(ts))}.`);
-    }
-    if (extras && !wrongCount) summary.push(`${cap(NUM[Math.min(extras, 12)])} extra sound${extras > 1 ? "s" : ""} ignored.`);
-  } else {
-    summary.push(`${n} shot${n > 1 ? "s" : ""}. ${cap(labels[0])} ${fmt(first)}.`);
-    if (splits.length) {
-      summary.push(splits.length <= 5 ? `Splits ${splits.map(fmt).join(", ")}.`
-        : `Best split ${fmt(Math.min(...splits))}, worst ${fmt(Math.max(...splits))}.`);
-      summary.push(`Total ${fmt(total)}.`);
-    }
-  }
-  if (hf != null) summary.push(`Hit factor ${hf.toFixed(2)}.`);
-  if (parText) summary.push(parText);
-  if (n) $("hint").textContent = [note, hf != null ? `${score.points} pts · HF ${hf.toFixed(2)}` : "", parText].filter(Boolean).join(" · ");
-  if (S.speakResults) await speak(summary.join(" "));
-  return { ...result, gaps };
+  // counted now: a restart during the results below moves on instead of shooting the rep again
+  set.results.push({ ...result, gaps: m.gaps });
+  set.rep++;
+
+  setStatus(v.headline, [m.note, v.parText].filter(Boolean).join(" "));
+  $("result").textContent = v.hf != null ? `${score.points} pts · HF ${fmt(v.hf)}` : "";
+  if (S.speakResults) await speak(summaryText(m, s, v));
+  return result;
 }
 
 // ---------- spoken score ----------
-// one word per shot (alpha, charlie, delta, mike; steel hit = alpha) or "all alpha",
+// one word per shot (alpha, charlie, delta, mike; steel hit = alpha), counts, or "all alpha";
 // read back, and "correction" asks again
-async function askScore(n, alive) {
+async function askScore(m, alive) {
+  const n = m.n;
   let prompt = "Score?", mismatches = 0, corrections = 0;
   try {
     while (alive()) {
-      const r = await collectScore(n, prompt, alive);
+      const r = await collectScore(m, prompt, alive);
       if (!r || !alive()) return null;
       if (r.heard != null) {
         if (mismatches++) return null;
-        prompt = `Heard ${NUM[Math.min(r.heard, 12)]}, expected ${NUM[Math.min(n, 12)]}. Say again.`;
+        prompt = `Heard ${numWord(r.heard)}, expected ${numWord(n)}. Say again.`;
         continue;
       }
       const points = scorePoints(r);
-      showScorepad("review", r);
+      showScorepad("review", r, m);
       setStatus(`${points} points`, canListen() ? "Say “correction” to score again." : "");
       let redo = false;
       scorepadRedo = () => { redo = true; };
-      const stop = listen(t => { if (/\b(correction|again|redo|wrong)\b/.test(t)) redo = true; });
-      const all = r.every(w => w === "A");
-      await speak(`${all ? "All alpha" : cap(r.map(w => WORD_NAME[w]).join(" "))}. ${points} points.`);
-      const until = Date.now() + 3000;
-      while (!redo && alive() && Date.now() < until) await sleep(50);
-      stop();
+      await speak(`${r.every(w => w === "A") ? "All alpha" : cap(r.map(w => WORD_NAME[w]).join(" "))}. ${points} points.`);
+      if (!redo && alive()) {
+        const stop = listen(t => { if (VOICE.redo.test(t)) redo = true; });
+        const until = Date.now() + 3000;
+        while (!redo && alive() && Date.now() < until) await sleep(50);
+        stop();
+      }
       if (redo && corrections++ < 3) { prompt = "Score?"; mismatches = 0; continue; }
       return { words: r, points };
     }
@@ -1074,29 +1334,34 @@ async function askScore(n, alive) {
 }
 
 // resolves with the words, { heard: k } for the wrong number of words, or null (skipped, timed out)
-function collectScore(n, prompt, alive) {
+function collectScore(m, prompt, alive) {
+  const n = m.n, voiceOn = canListen();
   return new Promise(resolve => {
-    let done = false, deadline = Infinity, words = [];
+    let done = false, deadline = Infinity, words = [], stop = () => {};
     const taps = [];
     const finish = v => { if (done) return; done = true; stop(); scorepadTap = scorepadSkip = null; resolve(v); };
-    showScorepad("collect", taps, n);
-    setStatus("Score?", canListen() ? `Say ${NUM[Math.min(n, 12)]} words: alpha, charlie, delta, mike. Or “all alpha”.` : "Tap one letter per shot.");
+    showScorepad("collect", taps, m);
+    setStatus("Score?", voiceOn ? `Say ${numWord(n)} ${plural(n, "word")}: alpha, charlie, delta, mike. Or “all alpha”.` : "Tap one letter per shot.");
     scorepadTap = w => {
-      if (w === "undo") taps.pop(); else taps.push(w);
-      showScorepad("collect", taps, n);
-      deadline = Math.max(deadline, Date.now() + 8000);
+      if (w === "undo") taps.pop(); else if (taps.length < n) taps.push(w);
+      showScorepad("collect", taps, m);
       if (taps.length === n) finish(taps.slice());
     };
     scorepadSkip = () => finish(null);
-    const stop = listen(() => { deadline = Math.max(deadline, Date.now() + 1500); }, alts => {
-      // a pause can split the words over several final results, so they add up
-      const pick = alts.map(a => parseScore(a, n - words.length)).find(w => words.length + w.length === n) || parseScore(alts[0], n - words.length);
-      words = words.concat(pick);
-      if (words.length === n) finish(words);
-      else if (words.length > n) finish({ heard: words.length });
-      else if (words.length) showScorepad("collect", words, n);
+    speak(prompt).then(() => {
+      if (done || !alive()) return;
+      if (!voiceOn) return;   // taps or Skip; no deadline
+      deadline = Date.now() + 15000;
+      stop = listen(() => { deadline = Math.max(deadline, Date.now() + 2000); }, alts => {
+        // a pause can split the words over several final results, so they add up
+        const rest = n - words.length;
+        const pick = alts.map(a => parseScore(a, rest)).find(w => w.length === rest) || parseScore(alts[0], rest);
+        words = words.concat(pick);
+        if (words.length === n) finish(words);
+        else if (words.length > n) finish({ heard: words.length });
+        else if (words.length) showScorepad("collect", words, m);
+      });
     });
-    speak(prompt).then(() => { if (!done) deadline = Date.now() + (canListen() ? 5000 : 20000); });
     (async () => {
       while (!done) {
         await sleep(50);
@@ -1108,13 +1373,23 @@ function collectScore(n, prompt, alive) {
 }
 
 let scorepadTap = null, scorepadSkip = null, scorepadRedo = null;
-function showScorepad(mode, words, n) {
+// the words grouped by target: "P[A C] S[_] P[_ _]"
+function scoreLayout(words, m) {
+  const slot = i => words[i] || "_";
+  if (!m.drill) return Array.from({ length: m.n }, (_, i) => slot(i)).join(" ");
+  const groups = [];
+  m.drill.shots.forEach((sh, i) => {
+    const g = groups[groups.length - 1];
+    if (g && g.ti === sh.ti) g.slots.push(slot(i)); else groups.push({ ti: sh.ti, target: sh.target, slots: [slot(i)] });
+  });
+  return groups.map(g => `${g.target}[${g.slots.join(" ")}]`).join(" ");
+}
+function showScorepad(mode, words, m) {
   $("scorepad").hidden = false;
   $("scoreTaps").hidden = mode !== "collect";
   $("scoreSkip").hidden = mode !== "collect";
   $("scoreRedo").hidden = mode !== "review";
-  const shown = words.join(" ");
-  $("scoreWords").textContent = mode === "collect" ? shown + " _".repeat(Math.max(0, n - words.length)) : shown;
+  $("scoreWords").textContent = mode === "collect" ? scoreLayout(words, m) : words.join(" ");
 }
 function hideScorepad() { $("scorepad").hidden = true; scorepadTap = scorepadSkip = scorepadRedo = null; }
 $("scoreTaps").addEventListener("click", e => { const w = e.target.dataset && e.target.dataset.w; if (w && scorepadTap) scorepadTap(w); });
@@ -1129,9 +1404,11 @@ async function setSummary(results, mixed, alive) {
   if (!mixed) {   // totals of different patterns or start positions don't compare
     const totals = done.map(r => r.total);
     parts.push(`Best ${fmt(Math.min(...totals))}, average ${fmt(mean(totals))}.`);
-  }
+    setBig(fmt(Math.min(...totals)));
+    $("result").textContent = "best";
+  } else $("result").textContent = "";
   const hfs = done.filter(r => r.hf != null).map(r => r.hf);
-  if (hfs.length) parts.push(`Best hit factor ${Math.max(...hfs).toFixed(2)}, average ${mean(hfs).toFixed(2)}.`);
+  if (hfs.length) parts.push(`Best hit factor ${fmt(Math.max(...hfs))}, average ${fmt(mean(hfs))}.`);
   for (const label of ["split", "transition", "reload"]) {
     const ts = done.flatMap(r => r.gaps.filter(g => g.label === label).map(g => g.t));
     if (ts.length) parts.push(`Average ${label} ${fmt(mean(ts))}.`);
@@ -1140,6 +1417,7 @@ async function setSummary(results, mixed, alive) {
     const p = parState(done[0].parKey).par;
     if (p) parts.push(`Par now ${fmt(p)}.`);
   }
+  $("shots").innerHTML = "";
   setStatus("Set done", parts.slice(1).join(" "));
   if (S.speakResults && alive()) await speak(parts.join(" "));
 }
@@ -1152,12 +1430,12 @@ function testHit(t) {
   testLast = t;
 }
 async function toggleTest() {
-  if (state === "test") { closeMic(); goIdle(); return; }
+  if (state === "test") { goIdle(); return; }
   if (state !== "idle") return;
   stopListening(); stopListening = () => {};
-  try { await openMic(); } catch (err) { setStatus("Microphone unavailable", String(err && err.message || err)); return; }
   state = "test"; testLast = null; testCount = 0;
-  $("start").disabled = true; $("test").textContent = "End test";
+  renderButtons();
+  try { await openMic(); } catch (err) { setStatus("Microphone unavailable", String(err && err.message || err)); goIdle(true); return; }
   setStatus("Mic test", "Dry-fire clicks should flash the meter; room noise should not. Adjust the threshold.");
   $("shots").textContent = "0 hits";
 }
@@ -1165,28 +1443,29 @@ async function toggleTest() {
 // ---------- log ----------
 const expanded = new Set();
 function renderLog() {
-  const rows = load("standby.log", []).slice(0, 30).map(e => {
-    const d = new Date(e.at);
-    const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    const drill = (e.pattern ? e.pattern + (e.incomplete ? ` (${e.n}/${e.N})` : "") : `${e.n} shot${e.n > 1 ? "s" : ""}`) +
+  const rows = load("standby.log", []).slice(0, LOG_SHOW).map(e => {
+    const time = new Date(e.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const drill = (e.pattern ? escapeHtml(e.pattern) + (e.incomplete ? ` (${e.n}/${e.N})` : "") : `${e.n} ${plural(e.n, "shot")}`) +
       (e.start && e.start !== "holster" && STARTS[e.start] ? ` · ${STARTS[e.start].name.toLowerCase()}` : "");
-    const par = e.par ? `${fmt(e.par)} ${e.pass ?? e.total <= e.par ? "✓" : "✗"}` : "";
-    let row = `<tr data-i="${e.at}"><td>${time}</td><td>${drill}</td><td>${fmt(e.total)}</td><td>${e.hf != null ? e.hf.toFixed(2) : ""}</td><td>${par}</td></tr>`;
-    if (expanded.has(e.at)) {
+    const passed = e.pass ?? (e.total <= e.par);
+    const par = e.par ? `${fmt(e.par)} ${passed ? "✓" : "✗"}` : "";
+    const open = expanded.has(e.at);
+    let row = `<tr><td><button class="link" data-i="${e.at}" aria-expanded="${open}">${time}</button></td><td>${drill}</td><td>${fmt(e.total)}</td><td>${e.hf != null ? fmt(e.hf) : ""}</td><td>${par}</td></tr>`;
+    if (open) {
       const hits = [e.first]; for (const sp of e.splits) hits.push(hits[hits.length - 1] + sp);
-      const bits = [gapText(hits, e.labels)];
-      if (e.score) bits.push(`${e.score} · ${e.points} pts`);
-      if (e.extras) bits.push(`${e.extras} extra sound${e.extras > 1 ? "s" : ""} ignored`);
-      row += `<tr class="detail"><td colspan="5">${bits.join("<br>")}</td></tr>`;
+      const bits = [`<div class="gaps">${gapsHtml(hits, e.labels)}</div>`];
+      if (e.score) bits.push(`${escapeHtml(e.score)} · ${e.points} pts`);
+      if (e.extras) bits.push(`${e.extras} extra ${plural(e.extras, "sound")} ignored`);
+      row += `<tr class="detail"><td colspan="5">${bits.join("")}</td></tr>`;
     }
     return row;
   });
   $("log").innerHTML = rows.join("") || `<tr><td colspan="5" class="muted">No strings yet.</td></tr>`;
 }
 $("log").addEventListener("click", e => {
-  const tr = e.target.closest("tr[data-i]");
-  if (!tr) return;
-  const at = +tr.dataset.i;
+  const b = e.target.closest("[data-i]");
+  if (!b) return;
+  const at = +b.dataset.i;
   if (!expanded.delete(at)) expanded.add(at);
   renderLog();
 });
@@ -1208,8 +1487,10 @@ $("start").addEventListener("click", () => {
   else restart();
 });
 $("stop").addEventListener("click", () => {
-  abortRun(); pending = null;
-  setStatus("Stopped"); goIdle();
+  abortRun(); pending = null; activeSet = null;
+  setStatus("Stopped", "");
+  goIdle(true);
+  $("hint").textContent = idleHint();
 });
 $("test").addEventListener("click", toggleTest);
 $("clearLog").addEventListener("click", () => { if (confirm("Clear the log?")) { save("standby.log", []); renderLog(); } });
@@ -1217,6 +1498,81 @@ syncPreset();
 updateThresholdUi();
 refreshDrillUi();
 renderLog();
+
+// ---------- self test: open with ?selftest ----------
+function selfTest() {
+  const out = [];
+  const eq = (name, got, want) => out.push((JSON.stringify(got) === JSON.stringify(want) ? "ok   " : "FAIL ") + name +
+    (JSON.stringify(got) === JSON.stringify(want) ? "" : `  got ${JSON.stringify(got)} want ${JSON.stringify(want)}`));
+  const throws = (name, f) => { try { f(); out.push("FAIL " + name + " (no error)"); } catch { out.push("ok   " + name); } };
+  // patterns
+  eq("labels P S R P", parsePattern("P S R P").shots.map(s => s.label), ["draw", "split", "transition", "reload", "split"]);
+  eq("targets P S R P", parsePattern("P S R P").shots.map(s => s.target + s.ti), ["P0", "P0", "S1", "P2", "P2"]);
+  eq("key 3p r 3p", parsePattern("3p r 3p").key, "3P R 3P");
+  eq("key P P P", parsePattern("P P P").key, "3P");
+  eq("call 2P S", parsePattern("2P S").call, "paper, paper, steel.");
+  eq("call 3P1", parsePattern("3P1").call, "paper, paper, paper, one shot each.");
+  eq("call 5S", parsePattern("5S").call, "five steel.");
+  eq("call P6", parsePattern("P6").call, "paper, six shots.");
+  eq("marks 3P R 3P", parsePattern("3P R 3P").marks, "P P P R P P P");
+  throws("S2", () => parsePattern("S2")); throws("R first", () => parsePattern("R P"));
+  throws("ends R", () => parsePattern("P R")); throws("R M", () => parsePattern("P R M P"));
+  throws("13P", () => parsePattern("13P")); throws("junk", () => parsePattern("P X"));
+  eq("pool default", parsePool(POOL).length, 12);
+  eq("targets", parseTargets("5P 3S"), { P: 5, S: 3 });
+  // generated courses stay within the targets and limits
+  let bad = 0, last = null;
+  for (let i = 0; i < 500; i++) {
+    const d = generateCourse({ P: 5, S: 3 }, last, { courseMin: 3, courseMax: 6, reloadChance: 30 });
+    const t = d.marks.split(" "), tg = t.filter(x => x !== "R");
+    if (tg.length < 3 || tg.length > 6 || tg.filter(x => x === "P").length > 5 || tg.filter(x => x === "S").length > 3 || t[0] === "R" || t[t.length - 1] === "R" || d.key === last) bad++;
+    last = d.key;
+  }
+  eq("generated courses", bad, 0);
+  // matching sounds to shots (realistic noise around reloads, echoes)
+  const R = (pat, peaks, want) => eq(`resolve ${pat} [${peaks}]`, resolveShots(peaks, parsePattern(pat).shots), want);
+  R("P R P", [1.0, 1.25, 2.9, 3.05, 3.3], [1.0, 1.25, 3.05, 3.3]);          // slide release just before
+  R("P R P", [1.0, 1.25, 2.8, 3.05, 3.3], [1.0, 1.25, 3.05, 3.3]);          // mag seat
+  R("P R P", [1.0, 1.25, 1.45, 3.05, 3.3], [1.0, 1.25, 3.05, 3.3]);         // mag drop
+  R("P R P", [1.0, 1.25, 1.45, 1.6, 3.05, 3.3], [1.0, 1.25, 3.05, 3.3]);    // mag drop and bounce
+  R("P R P", [1.0, 1.25, 3.05, 3.3, 3.9], [1.0, 1.25, 3.05, 3.3]);          // trailing rack
+  R("P R P", [1.0, 1.25, 1.7, 2.9, 3.1, 3.35], [1.0, 1.25, 3.1, 3.35]);
+  R("3P R 3P", [1.0, 1.22, 1.5, 1.72, 2.0, 2.22, 2.4, 4.0, 4.15, 4.38, 4.7, 4.92, 5.2, 5.42], [1.0, 1.22, 1.5, 1.72, 2.0, 2.22, 4.15, 4.38, 4.7, 4.92, 5.2, 5.42]);
+  R("3P R 3P", [1.0, 1.22, 1.5, 1.72, 2.0, 2.22, 2.5, 3.3, 3.95, 4.15, 4.38, 4.7, 4.92, 5.2, 5.42, 6.0], [1.0, 1.22, 1.5, 1.72, 2.0, 2.22, 4.15, 4.38, 4.7, 4.92, 5.2, 5.42]);
+  R("2P", [1.0, 1.25, 1.35, 1.6, 1.85], [1.0, 1.25, 1.6, 1.85]);           // echo mid string
+  R("2P", [1.0, 1.25, 1.6, 1.85, 1.95], [1.0, 1.25, 1.6, 1.85]);           // echo at the end
+  R("P S P", [1.0, 1.25, 1.6, 1.7, 2.0, 2.25], [1.0, 1.25, 1.6, 2.0, 2.25]); // echo off steel
+  R("P S", [0.9, 1.2, 1.5, 2.1], [0.9, 1.2, 1.5]);                          // holster noise after
+  R("P", [1.0, 1.25], [1.0, 1.25]);
+  R("P1 R P1", [1.0, 1.7, 3.2, 3.4], [1.0, 3.4]);                         // magazine lands 0.7 s after the shot
+  R("P1 R P1", [1.0, 1.9, 2.4], [1.0, 2.4]);                              // magazine lands 0.9 s after
+  eq("fits: mag drop isn't the shot after a reload", fitsPattern([1.0, 1.5], parsePattern("P1 R P1").shots), false);
+  eq("fits: complete reload drill", fitsPattern([1.0, 1.25, 1.45, 3.05, 3.3], parsePattern("P R P").shots), true);
+  eq("fits: 12 shots", fitsPattern([1, 1.3, 1.6, 1.9, 2.2, 2.5, 2.8, 3.1, 3.4, 3.7, 4.0, 4.3], parsePattern("6P").shots), true);
+  // scoring
+  eq("words", parseScore("Alpha, alpha alpha Charlie Mike", 5), ["A", "A", "A", "C", "M"]);
+  eq("all alpha", parseScore("all alphas", 4), ["A", "A", "A", "A"]);
+  eq("counts", parseScore("two alphas one charlie", 3), ["A", "A", "C"]);
+  eq("digits", parseScore("2 alpha 1 delta", 3), ["A", "A", "D"]);
+  eq("all alpha except", parseScore("all alpha except one charlie", 4), ["C", "A", "A", "A"]);
+  eq("miss and hit", parseScore("alpha miss hit", 3), ["A", "M", "A"]);
+  eq("variants", parseScore("alfa charley delta mikey", 4), ["A", "C", "D", "M"]);
+  eq("points", scorePoints(["A", "A", "A", "C", "A"], "minor"), 23);
+  eq("points floor", scorePoints(["M", "M"], "minor"), 0);
+  eq("major", scorePoints(["C", "D"], "major"), 6);
+  // adaptive staircase
+  let st = { par: 0, streak: 0, cal: [], history: [] };
+  for (const t of [2.95, 2.8, 2.7]) st = stepPar(st, t, null, 0.05).st;
+  eq("calibrated par", st.par, 3.1);
+  st = stepPar(st, 3.0, true, 0.05).st; eq("one pass keeps par", st.par, 3.1);
+  st = stepPar(st, 3.0, true, 0.05).st; eq("two passes tighten", st.par, 3.05);
+  st = stepPar(st, 3.2, false, 0.05).st; eq("a fail loosens", st.par, 3.1);
+  const fails = out.filter(l => l.startsWith("FAIL")).length;
+  out.unshift(`${fails ? fails + " FAILED" : "all passed"} (${out.length} checks)`);
+  document.body.insertAdjacentHTML("beforeend", `<pre id="selftest" class="card">${escapeHtml(out.join("\n"))}</pre>`);
+  console.log(out.join("\n"));
+}
+if (/[?&]selftest\b/.test(location.search)) selfTest();
 </script>
 </body>
 </html>

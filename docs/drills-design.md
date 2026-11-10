@@ -97,9 +97,8 @@ Seating the magazine, a magazine hitting the floor and the slide release all pro
 
 Approach: **collect every peak and decide afterwards which ones were shots.**
 
-- With an `R` in the pattern, the string doesn't end the moment the count is reached. It ends once the count is reached **and** 1.0 s of silence has passed, so late shots still get in.
-- **Resolution:** given P peaks (P ≥ N) and the pattern, choose the N peaks, in order, that minimise the draw time plus the `split` and `transition` gaps. `reload` and `movement` gaps are free, with a small reward for being long (−0.05 × gap) so that a single shot after a reload isn't matched to the noise just before it. A reload noise picked as a shot would either stretch a split or shrink the reload into a split-sized gap, so the true shots win. This is a small ordered-subset DP (O(N·P²), P is small) and runs once at string end.
-- With no `R`/`M`, the same resolution handles a stray echo in the grace window.
+- **Ending:** a drill string ends once at least N peaks were heard, the mic has been quiet for the grace time (0.6 s, or 1.5 s with `R`/`M`), **and** the peaks fit the pattern (below). A magazine landing can bring the count to N mid-reload, but a "reload" that short doesn't fit, so the string waits. If nothing fits, it ends on the silence timeout.
+- **Resolution (`planShots`)** picks which N of the P peaks were shots. Each dropped peak must have an explanation: reload noise inside a reload gap (cheap within 1 s after the last shot or 0.35 s before the next, dearer in between), an echo within 0.15 s of a shot, holster or rack noise well after the last shot. Anything else costs a lot. Each kept gap must be humanly possible: splits ≥ 0.1 s, reloads ≥ 0.8 s (under 1.2 s is possible but suspect), movement ≥ 0.3 s. Among plausible choices, shorter splits win. It's an ordered-subset DP (O(N·P³), P is small). The first version simply minimised split time, which reduces to "keep the earliest peaks" and dropped the real last shot whenever an echo followed it. A review caught that, and its 13 noise sequences are now fixed cases in the self test.
 - The live display shows raw peaks during the string. The summary and log show the resolved shots.
 
 Needs a test with a real gun: how loud is mag seating compared with the dry-fire click? If it's routinely louder, an extra option could raise the threshold during the expected reload gap.
@@ -157,7 +156,7 @@ The default pool is larger (12 patterns, one per line) to show what patterns can
 - **Start:** with no stored par, the first 3 reps run without a par beep. Par then starts at their mean total × 1.10, rounded to 0.05.
 - The summary says "Inside par. Next par 2.35" / "Over par. Next par 2.45". A sparkline of par over the set shows on screen.
 
-**Fix needed in the existing par-beep mask:** `onHit` currently drops *every* peak from −0.02 to +0.28 s around the par time. With adaptive par, real shots cluster right at par and would be lost. Change it to work like beep onset detection: the first peak in that window is taken as the par beep, and later ones count as shots.
+**Beeps and the shot detector:** the beeps are pure sine tones. The shot detector gets the mic with the beep frequency (and its harmonics) notched out, so a shot fired while a beep plays is still heard. Masking a window around the par beep (the old approach, and my first fix) loses every shot fired from par to about par + 0.28 s, because the detector only re-arms after 0.08 s below the threshold. A second input gets the mic through a band-pass at the beep frequency: it measures when the mic hears the start beep (the round trip, kept as a running median and used as the reference when a beep isn't heard) and ignores the par beep. Early starts are judged against when the beep is *heard*, not when it was scheduled. The beep is scheduled only once the mic has been quiet for 0.3 s after "Standby", so the announcer's voice can't trigger an early start.
 
 ## 8. Log and stats
 
