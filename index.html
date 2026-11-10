@@ -348,6 +348,8 @@
         <label>Targets per course, max <input type="number" id="courseMax" min="1" max="24" step="1"></label>
         <label>Reload chance (%) <input type="number" id="reloadChance" min="0" max="100" step="5">
           <small>Chance that a course gets one reload, at a random point between two targets.</small></label>
+        <label>Movement chance (%) <input type="number" id="moveChance" min="0" max="100" step="5">
+          <small>Chance of a “move” between two targets: shoot the next ones from a new spot of your choice. Courses of five or more targets can get a second move.</small></label>
       </div>
     </div>
     <div id="drillInfo"></div>
@@ -470,24 +472,27 @@ const dbToAmp = db => Math.pow(10, db / 20);
 function escapeHtml(t) { return String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]); }
 
 // ---------- settings ----------
-// the default Called list: enough variety to show what patterns can do
-const POOL = ["P S", "P S P", "S P S P", "2P S", "P 2S P", "3S P", "4P", "2P S 2P", "P S R P S", "2P R 2P", "S 3P S", "P1 P1 S S"].join("\n");
+// the previous default list: a saved list still equal to it is upgraded to POOL; an edited one is kept
+const POOL_BEFORE_MOVES = ["P S", "P S P", "S P S P", "2P S", "P 2S P", "3S P", "4P", "2P S 2P", "P S R P S", "2P R 2P", "S 3P S", "P1 P1 S S"].join("\n");
+// the default Called list: enough variety to show what patterns can do, movement included
+const POOL = ["P S", "P S P", "S P S P", "2P S", "P 2S P", "3S P", "4P", "2P S 2P", "P S R P S", "2P R 2P", "S 3P S", "P1 P1 S S", "2P M 2P", "P S M P S", "2P M S R 2P"].join("\n");
 const DEFAULTS = {
   threshold: -18, refractory: 0.08, prepTime: 3, readyWindow: 3,
   delayMin: 1, delayMax: 4, par: 2, silence: 5, maxWait: 10,
   early: true, voice: true, handsFree: true, confirm: true, closing: true, speakResults: true,
   mode: "course", startPos: "holster", pattern: "P S", pool: POOL,
-  calledFrom: "pool", targets: "5P 3S", courseMin: 3, courseMax: 6, reloadChance: 20,
+  calledFrom: "pool", targets: "5P 3S", courseMin: 3, courseMax: 6, reloadChance: 20, moveChance: 30,
   reps: 1, repInterval: 5, parMode: "off", parStep: 0.05, score: false, powerFactor: "minor",
 };
 // settings that change what a paused set would shoot: changing one drops the pause
-const SET_KEYS = ["mode", "startPos", "pattern", "pool", "calledFrom", "targets", "courseMin", "courseMax", "reloadChance", "reps"];
+const SET_KEYS = ["mode", "startPos", "pattern", "pool", "calledFrom", "targets", "courseMin", "courseMax", "reloadChance", "moveChance", "reps"];
 // MIGRATIONS[i] upgrades saved settings from version i + 1 (no version = 1)
 const MIGRATIONS = [
   s => { if (s.silence === 3) s.silence = DEFAULTS.silence; },                    // the old default ended strings too soon
   (s, stored) => { if (stored.par > 0) s.parMode = "fixed"; else s.par = DEFAULTS.par; },   // par 0 used to mean off
   () => {},                                                                        // (the start command setting, since removed)
   s => { if (s.pool === "2S | P S | 2P | 2P S") s.pool = POOL; },                 // a larger default list; a user's own is kept
+  s => { if (s.pool === POOL_BEFORE_MOVES) s.pool = POOL; },                                // the default list gained movement
 ];
 const VERSION = MIGRATIONS.length + 1;
 const stored = load("standby.settings", {});
@@ -623,6 +628,8 @@ function parseTargets(text) {
   const inv = { P: 0, S: 0 };
   for (const tok of String(text).trim().split(/[\s,]+/).filter(Boolean)) {
     const m = /^(\d*)([PS])$/i.exec(tok);
+    if (/^\d*M$/i.test(tok)) throw new Error("Targets: movement isn't a target. Use Movement chance below.");
+    if (/^\d*R$/i.test(tok)) throw new Error("Targets: a reload isn't a target. Use Reload chance below.");
     if (!m) throw new Error(`Targets: unknown “${tok}”. Use e.g. 5P 3S.`);
     inv[m[2].toUpperCase()] += m[1] ? +m[1] : 1;
   }
@@ -636,7 +643,8 @@ function courseRange(inv, opts = S) {
   const lo = Math.min(total, Math.max(1, Math.round(opts.courseMin) || 1));
   return [lo, Math.min(total, Math.max(lo, Math.round(opts.courseMax) || lo))];
 }
-// a course a coach might set: some of the targets, each once, in random order, now and then a reload
+// a course a coach might set: some of the targets, each once, in random order, now and then a reload,
+// and moves to a new spot (the shooter picks where). Each event takes its own gap between two targets.
 function generateCourse(inv, lastKey, opts = S, rnd = Math.random) {
   const [lo, hi] = courseRange(inv, opts);
   let drill;
@@ -644,8 +652,13 @@ function generateCourse(inv, lastKey, opts = S, rnd = Math.random) {
     const bag = [...new Array(inv.P).fill("P"), ...new Array(inv.S).fill("S")];
     for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
     const picks = bag.slice(0, lo + Math.floor(rnd() * (hi - lo + 1)));
-    if (picks.length >= 2 && rnd() * 100 < opts.reloadChance) picks.splice(1 + Math.floor(rnd() * (picks.length - 1)), 0, "R");
-    drill = parsePattern(picks.join(" "));
+    const free = Array.from({ length: Math.max(0, picks.length - 1) }, (_, g) => g + 1);   // gap g sits before target g
+    const take = () => free.splice(Math.floor(rnd() * free.length), 1)[0];
+    const events = {};
+    if (free.length && rnd() * 100 < opts.reloadChance) events[take()] = "R";
+    if (free.length && rnd() * 100 < (opts.moveChance || 0)) events[take()] = "M";
+    if (free.length && picks.length >= 5 && rnd() * 100 < (opts.moveChance || 0) / 2) events[take()] = "M";
+    drill = parsePattern(picks.flatMap((t, g) => events[g] ? [events[g], t] : [t]).join(" "));
     if (drill.key !== lastKey) break;
   }
   return drill;
@@ -903,7 +916,7 @@ function drillLine(drill, rep, reps, start) {
 // "Setup bill drill from table, five reps, par adaptive" → settings changes. Phrases are found in any
 // order; only what's said changes; words that aren't understood are reported, never guessed.
 const SETUP_TRIGGER = /^\s*(setup|set up|set-up)\b/i;
-const SETUP_KEYS = ["mode", "pattern", "calledFrom", "targets", "courseMin", "courseMax", "reloadChance",
+const SETUP_KEYS = ["mode", "pattern", "calledFrom", "targets", "courseMin", "courseMax", "reloadChance", "moveChance",
   "startPos", "reps", "repInterval", "parMode", "par", "parStep", "score", "powerFactor"];   // what a named setup stores
 const SETUP_NUMBERS = { zero: 0, one: 1, won: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
   eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, twenty: 20, thirty: 30, forty: 40, fifty: 50 };
@@ -1008,17 +1021,21 @@ function parseSetup(text, savedNames = []) {
       set("courseMin", Math.round(a.value), phrase(i, n)); set("courseMax", Math.round(b.value), phrase(i, n)); r.heard.push(phrase(i, n));
       return n;
     },
-    // reload chance: "reloads often / sometimes / rarely / never", "no reloads", "reload chance thirty"
+    // reload and movement chance: "reloads often / sometimes / rarely / never", "no reloads", "reload chance thirty",
+    // "moves often", "no movement", "movement chance thirty"
     i => {
       const amounts = { often: 40, sometimes: 20, rarely: 10, never: 0 };
-      if (/^reloads?$/.test(w[i]) && w[i + 1] in amounts) { set("reloadChance", amounts[w[i + 1]], phrase(i, 2)); r.heard.push(phrase(i, 2)); return 2; }
-      if (is(i, "no", "reloads")) { set("reloadChance", 0, "no reloads"); r.heard.push("no reloads"); return 2; }
-      if (/^reloads?$/.test(w[i]) && w[i + 1] === "chance") {
-        const num = setupNumber(w, i + 2);
-        if (!num) return 0;
-        const n = 2 + num.used + (w[i + 2 + num.used] === "percent" ? 1 : 0);
-        set("reloadChance", Math.min(100, Math.round(num.value)), phrase(i, n)); r.heard.push(phrase(i, n));
-        return n;
+      const kinds = [[/^reloads?$/, "reloadChance", /^reloads?$/], [/^(moves?|movements?|moving)$/, "moveChance", /^(moves?|movements?|moving)$/]];
+      for (const [word, key, after] of kinds) {
+        if (word.test(w[i]) && w[i + 1] in amounts) { set(key, amounts[w[i + 1]], phrase(i, 2)); r.heard.push(phrase(i, 2)); return 2; }
+        if (is(i, "no") && after.test(w[i + 1] || "")) { set(key, 0, phrase(i, 2)); r.heard.push(phrase(i, 2)); return 2; }
+        if (word.test(w[i]) && w[i + 1] === "chance") {
+          const num = setupNumber(w, i + 2);
+          if (!num) return 0;
+          const n = 2 + num.used + (w[i + 2 + num.used] === "percent" ? 1 : 0);
+          set(key, Math.min(100, Math.round(num.value)), phrase(i, n)); r.heard.push(phrase(i, n));
+          return n;
+        }
       }
       return 0;
     },
@@ -1118,7 +1135,7 @@ const setupScore = r => Object.keys(r.changes).length + (r.action ? 1 : 0) - r.u
 function describeSetup(cfg, only = null) {
   const has = (...keys) => !only || keys.some(k => only.includes(k));
   const out = [];
-  if (has("mode", "pattern", "calledFrom", "targets", "courseMin", "courseMax", "reloadChance")) {
+  if (has("mode", "pattern", "calledFrom", "targets", "courseMin", "courseMax", "reloadChance", "moveChance")) {
     if (cfg.mode === "course") out.push("Course");
     else if (cfg.mode === "drill") {
       let key = null; try { key = parsePattern(cfg.pattern).key; } catch {}
@@ -1127,7 +1144,7 @@ function describeSetup(cfg, only = null) {
     } else if (cfg.calledFrom === "targets") {
       let inv = null; try { inv = parseTargets(cfg.targets); } catch {}
       const lo = Math.round(cfg.courseMin), hi = Math.round(cfg.courseMax);
-      out.push(inv ? `Called, generated from ${[inv.P && `${numWord(inv.P)} paper`, inv.S && `${numWord(inv.S)} steel`].filter(Boolean).join(" and ")}, ${lo === hi ? numWord(lo) : `${numWord(lo)} to ${numWord(hi)}`} targets, reloads ${cfg.reloadChance} percent`
+      out.push(inv ? `Called, generated from ${[inv.P && `${numWord(inv.P)} paper`, inv.S && `${numWord(inv.S)} steel`].filter(Boolean).join(" and ")}, ${lo === hi ? numWord(lo) : `${numWord(lo)} to ${numWord(hi)}`} targets, reloads ${cfg.reloadChance} percent, moves ${cfg.moveChance} percent`
         : `Called, from your targets`);
     } else out.push("Called, from the list");
   }
@@ -2416,7 +2433,8 @@ function selfTest() {
   throws("ends R", () => parsePattern("P R")); throws("R M", () => parsePattern("P R M P"));
   throws("13P", () => parsePattern("13P")); throws("junk", () => parsePattern("P X"));
   eq("start command", ["holster", "ready", "table"].map(startCommand), ["Load and make ready", "Load and make ready", "Make ready"]);
-  eq("pool default", parsePool(POOL).length, 12);
+  eq("pool default", parsePool(POOL).length, 15);
+  eq("pool default has movement", parsePool(POOL).some(d => d.marks.includes("M")), true);
   eq("targets", parseTargets("5P 3S"), { P: 5, S: 3 });
   // generated courses stay within the targets and limits
   let bad = 0, last = null;
@@ -2427,6 +2445,16 @@ function selfTest() {
     last = d.key;
   }
   eq("generated courses", bad, 0);
+  // movement: never first or last, never next to the reload, about as often as asked
+  let moves = 0, badMove = 0;
+  for (let i = 0; i < 1000; i++) {
+    const t = generateCourse({ P: 5, S: 3 }, null, { courseMin: 3, courseMax: 6, reloadChance: 50, moveChance: 40 }).marks.split(" ");
+    if (t.includes("M")) moves++;
+    if (t[0] === "M" || t[t.length - 1] === "M" || t.some((x, k) => (x === "M" && (t[k + 1] === "R" || t[k - 1] === "R")))) badMove++;
+  }
+  eq("movement placed between targets", badMove, 0);
+  eq("movement about as often as asked", moves > 350 && moves < 600, true);
+  throws("targets: movement isn't a target", () => parseTargets("5P 2M"));
   // matching sounds to shots (realistic noise around reloads, echoes)
   const R = (pat, peaks, want) => eq(`resolve ${pat} [${peaks}]`, resolveShots(peaks, parsePattern(pat).shots), want);
   R("P R P", [1.0, 1.25, 2.9, 3.05, 3.3], [1.0, 1.25, 3.05, 3.3]);          // slide release just before
@@ -2482,6 +2510,8 @@ function selfTest() {
   eq("setup list", P("setup called from the list, random start"), { mode: "called", calledFrom: "pool", startPos: "random" });
   eq("setup conflict", P("setup course bill drill"), { mode: "course", pattern: "P6", conflicts: 1 });
   eq("setup unknown", P("setup flibber"), { unknown: ["flibber"] });
+  eq("setup moves", P("setup moves often, no reloads"), { moveChance: 40, reloadChance: 0 });
+  eq("setup no movement", P("setup no movement, movement chance 30"), { moveChance: 0, conflicts: 1 });
   eq("setup query", P("setup"), { action: "query" });
   eq("what's set", P("what's set"), { action: "query" });
   eq("setup save", P("setup save as warm up"), { action: "save", name: "warm up" });

@@ -140,6 +140,7 @@ Called mode can take its patterns from the **pool** or from **My targets**: what
 
 - Each course uses a random selection of those targets, each at most once, in random order. Its length is between **Targets per course** min and max (default 3–6, capped at what's available), so a lone `P` (better done in Drill mode) doesn't come up.
 - **Reload chance** (default 20 %): the chance that a course gets one reload, placed at a random point between two targets.
+- **Movement chance** (default 30 %): the chance of a "move" between two targets; the shooter picks the new spot (there are no designated positions). Courses of five or more targets can get a second move at half the chance. Reloads and moves each take their own gap, so a move is never next to the reload, nor first or last. `M` in "my targets" is refused with a pointer to this setting.
 - The same course never comes twice in a row.
 - Adaptive par is off for generated courses. Par is kept per pattern and generated courses rarely repeat, so it would stay in calibration. Fixed par works.
 
