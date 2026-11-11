@@ -307,25 +307,38 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   await until(() => state === "idle", 30000);
   check("audio gap noted in the result", /Audio paused during the string/.test($("hint").textContent), $("hint").textContent);
 
-  // 30. the real detector (worklet and filters) on synthesized audio: a quiet beep under a high shot threshold
-  // is still heard, by its tone; loud broadband shots are shots, and never pass for the beep
+  // 30. the detector's own code (the worklet source) on synthesized audio: a quiet beep under a high shot
+  // threshold is still heard, by its tone; loud broadband shots are shots, and never pass for the beep.
+  // Run here in 128-sample blocks, not in an audio context: offline rendering doesn't finish under the
+  // runner's virtual time. The filters are Web Audio's biquads (Audio EQ Cookbook, as wireDetector sets them).
   {
-    const sr = 48000, len = 2.5, ac = new OfflineAudioContext(1, sr * len, sr);
-    await ac.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" })));
-    const buf = ac.createBuffer(1, sr * len, sr), x = buf.getChannelData(0);
+    const sr = 48000, len = 2.5, n = sr * len, got = { hit: [], beep: [] };
+    const clock = { t: 0 };
+    class AudioWorkletProcessor { constructor() { this.port = { postMessage: m => { if (m.hit != null) got.hit.push(m.hit); if (m.beep != null) got.beep.push(m.beep); } }; } }
+    let Proc = null;
+    const scope = { AudioWorkletProcessor, registerProcessor: (name, c) => { Proc = c; }, sampleRate: sr, get currentTime() { return clock.t; } };
+    new Function("scope", `with (scope) { ${WORKLET} }`)(scope);
+    const node = new Proc();
+    node.port.onmessage({ data: { threshold: dbToAmp(-15), refractory: 0.08 } });
+    const biquad = (type, f, q) => {
+      const w = 2 * Math.PI * f / sr, al = Math.sin(w) / (2 * q), c = Math.cos(w), a0 = 1 + al;
+      const [b0, b1, b2] = type === "notch" ? [1, -2 * c, 1] : [al, 0, -al];
+      let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+      return x => { const y = (b0 * x + b1 * x1 + b2 * x2 + 2 * c * y1 - (1 - al) * y2) / a0; x2 = x1; x1 = x; y2 = y1; y1 = y; return y; };
+    };
     let seed = 1; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
-    for (let i = 0; i < x.length; i++) x[i] = 0.003 * rnd();                       // the room, about -50 dB
+    const x = new Float32Array(n);
+    for (let i = 0; i < n; i++) x[i] = 0.003 * rnd();                                            // the room, about -50 dB
     const beepAt0 = 1.0, shotsAt = [0.5, 1.12, 2.0];
     for (let i = 0; i < 0.3 * sr; i++) x[Math.round(beepAt0 * sr) + i] += 0.03 * Math.min(1, i / (0.005 * sr)) * Math.sin(2 * Math.PI * BEEP_HZ * i / sr);   // -30 dB
     for (const at of shotsAt) for (let i = 0; i < 0.05 * sr; i++) x[Math.round(at * sr) + i] += 0.6 * Math.exp(-i / (0.008 * sr)) * rnd();
-    const src = ac.createBufferSource(); src.buffer = buf;
-    const { detector: node } = wireDetector(ac, src);
-    node.connect(ac.destination);
-    node.port.postMessage({ threshold: dbToAmp(-15), refractory: 0.08 });
-    const got = { hit: [], beep: [] };
-    node.port.onmessage = e => { if (e.data.hit != null) got.hit.push(e.data.hit); if (e.data.beep != null) got.beep.push(e.data.beep); };
-    src.start(0);
-    await ac.startRendering(); await sleep(300);
+    const notches = [1, 2, 3].map(h => biquad("notch", BEEP_HZ * h, 2)), band = biquad("bandpass", BEEP_HZ, 10);
+    for (let b = 0; b < n; b += 128) {
+      const shot = new Float32Array(128), beep = new Float32Array(128);
+      for (let i = 0; i < 128; i++) { shot[i] = notches.reduce((v, f) => f(v), x[b + i]); beep[i] = band(x[b + i]); }
+      clock.t = b / sr;
+      node.process([[shot], [beep]]);
+    }
     check("detector: quiet beep heard under a high shot threshold", got.beep.length === 1 && Math.abs(got.beep[0] - beepAt0) < 0.004, JSON.stringify(got.beep));
     check("detector: shots are shots, not beeps", got.hit.length === 3 && shotsAt.every((at, k) => Math.abs(got.hit[k] - at) < 0.004), JSON.stringify(got.hit));
   }
