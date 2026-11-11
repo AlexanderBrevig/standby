@@ -1,6 +1,9 @@
 // Simulation harness for tests/run.sh: loaded into a copy of index.html after its own script.
 // stubs: clock, audio, speech; scripted voice replies keyed on the last prompt
 const LOG = [], SAID = [];
+// the log is on the page as it grows: a dump that comes too early (a CI runner out of virtual time) shows how far it got
+document.body.insertAdjacentHTML("beforeend", `<pre id="out"></pre>`);
+LOG.push = function (...lines) { const n = Array.prototype.push.apply(this, lines); document.getElementById("out").textContent = this.join("\n"); return n; };
 window.onerror = (m, s, l) => LOG.push("ERROR " + m + " @" + l);
 window.onunhandledrejection = e => LOG.push("REJECT " + (e.reason && e.reason.stack || e.reason));
 ctx = { get currentTime() { return performance.now() / 1000; }, outputLatency: 0, baseLatency: 0, state: "running",
@@ -45,5 +48,5 @@ async function runSet(name, opts, plan, replies = []) {
   const ok = await until(() => state === "idle");
   LOG.push(`== ${name}${ok ? "" : " (TIMED OUT, state " + state + ")"}`);
 }
-function done() { document.body.insertAdjacentHTML("beforeend", `<pre id="out">${LOG.join("\n")}</pre>`); }
+function done() { LOG.push("== done"); }
 document.getElementById("overlay")?.remove(); state = "idle"; gestured = true; localStorage.removeItem("standby.log"); localStorage.removeItem("standby.par"); parCache = null;
