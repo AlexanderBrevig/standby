@@ -93,6 +93,9 @@
   .gaps { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 4px 14px; font: 500 1rem var(--font-mono); font-variant-numeric: tabular-nums; margin-top: 8px; text-align: left; }
   .gaps span { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--line); }
   .gaps i { font: 400 .75em var(--font-body); color: var(--muted); }
+  /* the splits on the face: read from a step or two away after the string, so they scale with it (the log keeps .gaps small) */
+  #shots { font-size: clamp(1.25rem, 5.5cqi, 1.9rem); grid-template-columns: repeat(auto-fit, minmax(7.5em, 1fr)); }
+  #shots i { font-size: .7em; }
   #parBox { margin-top: 10px; }
   #parline { display: block; width: 100%; height: 40px; }
   #parLabel { color: var(--muted); font-size: .85rem; text-align: right; }
@@ -252,7 +255,7 @@
   body.running #big { margin-block: auto; }
   body.running #status { font-size: clamp(2.2rem, 11cqi, 4.5rem); }
   body.running #hint { font-size: clamp(1.1rem, 4cqi, 1.6rem); color: var(--face-ink); opacity: .85; }
-  body.running .gaps { font-size: clamp(1rem, 4.6cqi, 1.6rem); }
+  body.running #shots { font-size: clamp(1.3rem, 6.5cqi, 2.4rem); grid-template-columns: repeat(auto-fit, minmax(6.5em, 1fr)); }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -364,7 +367,7 @@
       <label>Reps <input type="number" id="reps" min="1" max="50" step="1"></label>
     </div>
     <label>Wait for “continue” before each string <input type="checkbox" id="confirm">
-      <small>On: the briefing waits until you say “continue” or tap Continue, so there's time to reload or reset. Off: it runs straight on, with a countdown between reps (the make-ready time, 3 s by default).</small></label>
+      <small>On: the briefing waits until you say “continue” or tap Continue, so there's time to reload or reset. Off: it runs straight on, with a countdown between reps (the make-ready time, 3 s by default). Course mode from the holster has no briefing, so “restart” starts the string. Without voice recognition the briefing continues by itself after a few seconds.</small></label>
     <div class="field"><span class="field-label" id="parMode-label">Par</span><select id="parMode" data-seg aria-labelledby="parMode-label" hidden><option value="off">Off</option><option value="fixed">Fixed</option><option value="adaptive">Adaptive</option></select>
       <small id="parHelp"></small></div>
     <label data-par="fixed">Par time (s) <input type="number" id="par" min="0.3" max="30" step="0.05"></label>
@@ -382,8 +385,6 @@
         <small id="voiceNote">Listen for “restart”, “continue”, “not ready”, scores …</small></label>
         <label>Hands-free setup <input type="checkbox" id="handsFree">
           <small>Change the drill by voice while idle: “setup bill drill from table, five reps”. It reads back what it understood; say “confirm” or “cancel”.</small></label>
-      <label>Wait for “continue” after the briefing <input type="checkbox" id="confirm">
-        <small>“From low ready. Paper, steel. Say continue to proceed.” Without voice recognition the briefing continues by itself after a few seconds.</small></label>
       <label>Closing commands (unload &amp; show clear …) <input type="checkbox" id="closing">
         <small>Course mode only.</small></label>
       <label>Speak results <input type="checkbox" id="speakResults"></label>
@@ -1253,7 +1254,7 @@ const WORKLET = `
 class HitDetector extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.thr = 0.12; this.refr = 0.08; this.lastAbove = -1; this.beepAbove = -1; this.peak = 0; this.lastPost = 0;
+    this.thr = 0.12; this.refr = 0.08; this.lastAbove = -1; this.beepAbove = -1; this.beepOnset = -1; this.beepFloor = 0; this.cand = -1; this.eb = 0; this.en = 0; this.peak = 0; this.lastPost = 0;
     this.port.onmessage = e => {
       if (e.data.threshold != null) this.thr = e.data.threshold;
       if (e.data.refractory != null) this.refr = e.data.refractory;
@@ -1271,11 +1272,21 @@ class HitDetector extends AudioWorkletProcessor {
         this.lastAbove = t;
       }
     }
+    // The beep: our own tone, found by what it is rather than how loud. A rise on the band input (well
+    // above that band's background, a slow average frozen while a beep sounds) marks the onset to the
+    // sample; it counts only if, within a few ms, the band carries several times the energy of
+    // everything else (the notched input). A shot rises in the band too, but it's broadband.
     if (beep) for (let i = 0; i < beep.length; i++) {
-      if (Math.abs(beep[i]) >= this.thr) {
-        const t = currentTime + i / sampleRate;
-        if (t - this.beepAbove >= 0.15) this.port.postMessage({ beep: t });
+      const vb = beep[i], vn = shot ? shot[i] : 0, v = Math.abs(vb), t = currentTime + i / sampleRate;
+      const a = 1 / (0.005 * sampleRate);
+      this.eb += (vb * vb - this.eb) * a; this.en += (vn * vn - this.en) * a;
+      if (v >= Math.max(this.beepFloor * 10, 0.0005)) {
+        if (this.cand < 0 && t - this.beepAbove >= 0.15) this.cand = t;
         this.beepAbove = t;
+      } else if (this.cand < 0 && t - this.beepOnset > 0.4) this.beepFloor += (v - this.beepFloor) / (0.3 * sampleRate);
+      if (this.cand >= 0) {
+        if (t - this.cand >= 0.008 && this.eb > 3 * this.en) { this.port.postMessage({ beep: this.cand }); this.beepOnset = this.cand; this.cand = -1; }
+        else if (t - this.cand > 0.03) this.cand = -1;   // not a tone
       }
     }
     if (currentTime - this.lastPost > 0.05) { this.port.postMessage({ peak: this.peak, t: currentTime }); this.peak = 0; this.lastPost = currentTime; }
@@ -1284,6 +1295,19 @@ class HitDetector extends AudioWorkletProcessor {
 }
 registerProcessor("hit-detector", HitDetector);`;
 
+// the mic into the detector: shots with the beep notched out, the beep through a band-pass
+function wireDetector(ac, src) {
+  const detector = new AudioWorkletNode(ac, "hit-detector", { numberOfInputs: 2 });
+  // the beep is a sine, but a phone speaker adds harmonics: notch those too
+  const filters = [1, 2, 3].map(h => Object.assign(ac.createBiquadFilter(), { type: "notch" }));
+  filters.forEach((f, i) => { f.frequency.value = BEEP_HZ * (i + 1); f.Q.value = 2; });
+  const band = Object.assign(ac.createBiquadFilter(), { type: "bandpass" });
+  band.frequency.value = BEEP_HZ; band.Q.value = 10;
+  filters.push(band);
+  src.connect(filters[0]).connect(filters[1]).connect(filters[2]).connect(detector, 0, 0);
+  src.connect(band).connect(detector, 0, 1);
+  return { detector, filters };
+}
 // one mic pipeline at a time; a stop while the permission prompt is open leaves nothing behind
 function openMic() {
   if (stream) return Promise.resolve();
@@ -1297,15 +1321,7 @@ function openMic() {
         .catch(e => { workletPromise = null; throw e; }));
       stream = st;
       source = ctx.createMediaStreamSource(stream);
-      detector = new AudioWorkletNode(ctx, "hit-detector", { numberOfInputs: 2 });
-      // the beep is a sine, but a phone speaker adds harmonics: notch those too
-      filters = [1, 2, 3].map(h => Object.assign(ctx.createBiquadFilter(), { type: "notch" }));
-      filters.forEach((f, i) => { f.frequency.value = BEEP_HZ * (i + 1); f.Q.value = 2; });
-      const band = Object.assign(ctx.createBiquadFilter(), { type: "bandpass" });
-      band.frequency.value = BEEP_HZ; band.Q.value = 10;
-      filters.push(band);
-      source.connect(filters[0]).connect(filters[1]).connect(filters[2]).connect(detector, 0, 0);
-      source.connect(band).connect(detector, 0, 1);
+      ({ detector, filters } = wireDetector(ctx, source));
       sink = ctx.createGain(); sink.gain.value = 0;    // keeps the node pulled without playing the mic
       detector.connect(sink).connect(ctx.destination);
       detector.port.onmessage = e => {
@@ -1449,7 +1465,26 @@ let wakeLock = null;
 async function keepAwake() {
   try { if ("wakeLock" in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.onrelease = () => { wakeLock = null; }; } } catch {}
 }
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && state !== "locked") keepAwake(); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && state !== "locked") { keepAwake(); onAudioState(); } });
+// The browser can suspend the audio clock (screen lock, a call, iOS when the mic opens). Every wait in a
+// string runs on that clock, so without it the face froze until a tap: try to resume, and say a tap is
+// needed when the browser insists on one.
+let audioPaused = null;   // [status, hint] to put back when the clock runs again
+function onAudioState() {
+  if (!ctx) return;
+  if (ctx.state === "running") {
+    if (audioPaused && statusText === "Audio paused") setStatus(...audioPaused);
+    audioPaused = null;
+    return;
+  }
+  if (ctx.state !== "suspended" && ctx.state !== "interrupted") return;
+  if (string && ctx.currentTime >= string.T) string.audioGap = true;   // shots in the gap went unheard
+  ctx.resume().catch(() => {});
+  if (state !== "idle" && state !== "locked" && !audioPaused) {
+    audioPaused = [statusText, $("hint").textContent];
+    setStatus("Audio paused", "Tap anywhere to continue.");
+  }
+}
 
 function renderButtons() {
   const start = $("start");
@@ -1468,6 +1503,10 @@ function renderButtons() {
 function idleHint() {
   if (plan.error) return "Fix the drill settings below.";
   if (!gestured) return "Tap anywhere once to wake the audio.";
+  // a skipped mic setup leaves the default threshold, which quiet clicks may never reach
+  return isCalibrated() ? readyHint() : `${readyHint()} The mic isn't tuned yet: run “Mic test” under Detector & timing.`;
+}
+function readyHint() {
   if (!SR) return "Tap Start. (No voice recognition in this browser.)";
   const say = S.voice ? "Say “restart” or tap Start" : "Tap Start";
   if (pending) return `Set paused. ${say} to continue.`;
@@ -1624,6 +1663,7 @@ async function beginSet(opts = {}) {
     : { rep: 0, reps, results: [], lastKey: sameSettings(lastShot) && lastShot.drill ? lastShot.drill.key : null, sig: setSig() };
   pending = null;
   renderButtons();
+  onAudioState();   // suspended while idle (a voice "restart" brings no tap to resume it)
   let first = true, keep = true, course = sameSettings(opts.course) ? opts.course : null;
   while (alive() && set.rep < reps) {
     const drill = course ? course.drill : src ? nextDrill(src, set.lastKey) : null;
@@ -1799,7 +1839,7 @@ function armString(drill, start) {
   const now = ctx.currentTime;
   const T = now + lo + Math.random() * (hi - lo);
   const par = parFor(drill, start);
-  const s = string = { T, armFrom: now, onset: null, raw: [], beepsHeard: [], early: false, par, drill, start, mode: S.mode, beeps: [beepAt(T)] };
+  const s = string = { T, armFrom: now, onset: null, raw: [], beepsHeard: [], early: false, par, drill, start, mode: S.mode, beeps: [beepAt(T)], beepTimes: par ? [T, T + par] : [T] };
   if (par) s.beeps.push(beepAt(T + par, PAR_BEEP));
   setTimeout(flashBeep, (T - now) * 1000);
   return s;
@@ -1808,6 +1848,8 @@ function armString(drill, start) {
 function onBeep(t) {
   const s = string;
   if (!s) return;
+  // only near a beep we played: anything else that passed for one mustn't mute a shot (onHit)
+  if (!s.beepTimes.some(b => t >= b - 0.02 && t <= b + 0.8)) return;
   s.beepsHeard.push(t);
   if (s.onset === null && t >= s.T - 0.02 && t <= s.T + 0.8) {
     s.onset = t;
@@ -1840,6 +1882,13 @@ function elapsed(s) {
   const now = ctx.currentTime, ref = refTime(s), hits = hitsOf(s);
   return { now, ref, hits, last: hits.length ? ref + hits[hits.length - 1] : ref, before: now < s.T };
 }
+// at the beep the face shows 0.00 until the first shot, like a shot timer: a clock running without
+// shots reads as a time (a string with no shots used to end on "9.98")
+function beepShown(s, now, ref) {
+  if (s.live || now < ref) return;
+  s.live = true;
+  if (!s.raw.length) { setBig("0.00"); setStatus("Listening", "Times appear with the first shot."); }
+}
 // a course string ends after silence; with closing commands, a shot right after
 // "If you are finished" means the shooter wasn't, so timing goes on
 async function waitOpenString(s, alive) {
@@ -1866,7 +1915,7 @@ async function waitForSilence(s, alive) {
     const { now, ref, hits, last, before } = elapsed(s);
     if (before) continue;
     if (now - last > (hits.length ? S.silence : S.maxWait) && now - ref > (s.par || 0) + 0.3) return;
-    if (!hits.length) setBig(fmt(Math.max(0, now - ref)));
+    beepShown(s, now, ref);
   }
 }
 // A drill ends shortly after its last expected shot, once the sounds heard fit the pattern (reload
@@ -1880,7 +1929,7 @@ async function waitForDrillEnd(s, alive) {
     if (before) continue;
     if (hits.length >= N && now - last >= grace && fitsPattern(hits, s.drill.shots)) return;
     if (now - last > (hits.length ? S.silence : S.maxWait)) return;
-    if (!hits.length) setBig(fmt(Math.max(0, now - ref)));
+    beepShown(s, now, ref);
   }
 }
 
@@ -1898,7 +1947,9 @@ function measure(s) {
     splits: hits.slice(1).map((h, i) => h - hits[i]),
     // the shot count is all that's checked of a called pattern; extras are expected around a reload
     wrongCount: s.mode === "called" && (incomplete || (extras > 0 && !drill.loose)),
-    note: !s.onset && n ? "Beep not heard by the mic: times use an estimated latency." : "",
+    note: s.audioGap ? "Audio paused during the string: times may be wrong." : !n ? (s.onset ? `Nothing louder than the threshold (${S.threshold} dB) after the beep: lower it in Mic test.`
+        : "The mic heard neither the beep nor a shot: check that it isn't covered, and the threshold in Mic test.")
+      : !s.onset ? "Beep not heard by the mic: times use an estimated latency." : "",
   };
 }
 function judge(m, s, score) {
@@ -1915,7 +1966,7 @@ function judge(m, s, score) {
 }
 function summaryText(m, s, v) {
   const out = [];
-  if (!m.n) out.push("No shots detected.");
+  if (!m.n) out.push("No shots detected. Check the microphone threshold.");
   else if (m.drill) {
     if (m.incomplete) out.push(s.mode === "called" ? `Called ${m.N}, heard ${m.n}.` : `${m.n} of ${m.N} shots heard.`);
     else if (m.wrongCount) out.push(`Called ${m.N}, heard ${m.peaks.length}.`);   // the raw count: the extra was a shot
@@ -1950,6 +2001,7 @@ async function finishString(s, set, alive) {
   }
   const m = measure(s);
   if (m.n) { setBig(fmt(m.total)); $("shots").innerHTML = gapsHtml(m.hits, m.labels); }
+  else setBig("—");
   $("result").textContent = "";
   setStatus(m.incomplete ? `${m.n} of ${m.N} shots` : "Done", m.note);
 
@@ -2118,47 +2170,80 @@ async function setSummary(results, mixed, alive) {
 }
 
 // ---------- mic sheet: test and calibration ----------
-// Listens to the room (~1.5 s) for its noise floor, then for three shots, and sets the threshold
-// between the two. Opens by itself while the threshold is uncalibrated; "Mic test" opens it any time.
-const CALIB_CLICKS = 3, CALIB_ROOM = 1.5;   // clicks to hear, seconds of room
+// Listens to the room (~1.5 s), then for shots: after three it sets the threshold between the two, and
+// each shot after refines it until Done. Opens by itself while the mic isn't tuned; "Mic test" opens it any time.
+const CALIB_CLICKS = 3, CALIB_ROOM = 1.5;   // shots before a threshold is set, seconds of room first
+const CALIB_SILENT = -90;                   // dB: a mic that has just opened delivers digital silence first
+const CALIB_GAP = 1.0;                      // s between counted shots, and the level must drop back near the room in between:
+                                            // a bump or a long rumble is one shot, not three
 let calib = null;   // { phase: "room" | "clicks" | "done", noise: [dB], clicks: [dB], t0, lastClick, heard, hits, lastHit }
 const isCalibrated = () => load("standby.calibrated", false) || S.threshold !== DEFAULTS.threshold;
+const askCalib = () => !isCalibrated() && !load("standby.calibSkipped", false);   // open the mic setup by itself
 const ampDb = a => 20 * Math.log10(Math.max(a, 1e-5));
+// the room's louder moments, not its median: the detector compares single peaks with the threshold
+const roomLevel = noise => { const s = [...noise].sort((a, b) => a - b); return s[Math.floor(s.length * 0.9)]; };
 function calibSay(status, hits = "") { $("calibStatus").textContent = status; $("calibHits").innerHTML = hits; }
 function calibListen() {
-  calib = { phase: "room", noise: [], clicks: [], t0: ctx.currentTime, lastClick: 0, heard: false, hits: 0, lastHit: null };
+  calib = { phase: "room", noise: [], clicks: [], t0: null, lastClick: -Infinity, armed: true, heard: false, hits: 0, lastHit: null };
   calibSay("Listening to the room… keep still.");
   $("calibDone").textContent = "Skip";
 }
-// level reports from the shot input, about every 50 ms
+// Level reports from the shot input, about every 50 ms. After the room, it keeps listening: every shot
+// refines the threshold and the room is followed between shots, until Done.
 function calibPeak(peak, t) {
   if (!calib) return;
-  calib.heard = true;
   const db = ampDb(peak);
+  if (db < CALIB_SILENT) return;   // not sound yet
+  calib.heard = true;
   if (calib.phase === "room") {
+    calib.t0 ??= t;
     calib.noise.push(db);
-    if (t - calib.t0 >= CALIB_ROOM) { calib.phase = "clicks"; calibSay(`Now fire ${numWord(CALIB_CLICKS)} shots.`, `Room: <b>${Math.round(median(calib.noise))} dB</b>`); }
+    if (t - calib.t0 >= CALIB_ROOM) { calib.phase = "clicks"; calibSay(`Now fire ${numWord(CALIB_CLICKS)} shots.`, `Room <b>${Math.round(roomLevel(calib.noise))} dB</b>`); }
   } else if (calib.phase === "clicks") {
-    const floor = median(calib.noise);
-    if (db > floor + 12 && t - calib.lastClick > 0.25) {
+    const floor = roomLevel(calib.noise);
+    if (!calib.armed && db < floor + 6) calib.armed = true;   // quiet again after the last shot
+    else if (!calib.armed && t - calib.lastClick < 0.3 && db > calib.clicks[calib.clicks.length - 1]) {   // a shot over two reports: its loudest
+      calib.clicks[calib.clicks.length - 1] = db;
+      calibUpdate(floor);
+      return;
+    }
+    if (calib.armed && db > floor + 12 && t - calib.lastClick >= CALIB_GAP) {
+      calib.armed = false;
       calib.clicks.push(db); calib.lastClick = t;
-      const n = calib.clicks.length;
-      calibSay(n < CALIB_CLICKS ? `Shot ${n} of ${CALIB_CLICKS}. Again.` : "Got it.",
-        `Room <b>${Math.round(floor)} dB</b> · shots ${calib.clicks.map(c => `<b>${Math.round(c)}</b>`).join(" ")} dB`);
-      if (n >= CALIB_CLICKS) calibFinish();
+      calibUpdate(floor);
+    } else if (calib.armed && db <= floor + 12 && t - calib.lastClick > 0.5) {   // past a shot and its ringing: the room
+      calib.noise.push(db);
+      if (calib.noise.length > 100) calib.noise.shift();
     }
   }
 }
-function calibFinish() {
-  const floor = median(calib.noise), quietest = Math.min(...calib.clicks);
-  // between the room and the quietest click, a little nearer the room so softer clicks still count
-  const thr = Math.max(-50, Math.min(-3, Math.round(floor + (quietest - floor) * 0.45)));
-  $("threshold").value = thr;
-  $("threshold").dispatchEvent(new Event("change"));
+// The threshold sits under the shots, not partway up from the room: in a quiet room that lands
+// below typing or a bump. Shots are the sounds within CALIB_SPREAD of the loudest; quieter ones
+// (typing, a tap) are ignored. Pure: → { thr, shots } (thr null until CALIB_CLICKS shots)
+const CALIB_SPREAD = 10, CALIB_MARGIN = 10;   // dB
+function calibThreshold(floor, clicks) {
+  const top = Math.max(...clicks), shots = clicks.filter(c => c >= top - CALIB_SPREAD);
+  if (shots.length < CALIB_CLICKS) return { thr: null, shots };
+  // under the median shot, and low enough that every counted shot would trigger it
+  const thr = Math.round(Math.max(Math.min(median(shots) - CALIB_MARGIN, Math.min(...shots) - 3), floor + 10));
+  return { thr: Math.max(-50, Math.min(-3, thr)), shots };
+}
+function calibUpdate(floor) {
+  const { thr, shots } = calibThreshold(floor, calib.clicks);
+  if (thr !== null) { calibSet(floor, thr, shots); return; }
+  calibSay(`Shot ${shots.length} of ${CALIB_CLICKS}. Again.`, calibLine(floor, shots));
+}
+// the sounds heard, the ignored ones struck through
+const calibLine = (floor, shots) => {
+  const ignored = calib.clicks.length - shots.length;
+  return `Room <b>${Math.round(floor)} dB</b> · heard ${calib.clicks.slice(-8).map(c => shots.includes(c) ? `<b>${Math.round(c)}</b>` : `<s>${Math.round(c)}</s>`).join(" ")} dB` +
+    (ignored ? ` · ${ignored} soft ${plural(ignored, "sound")} ignored` : "");
+};
+function calibSet(floor, thr, shots) {
+  if (thr !== S.threshold) { $("threshold").value = thr; $("threshold").dispatchEvent(new Event("change")); }
   save("standby.calibrated", true);
-  calib.phase = "done";
-  const close = quietest - floor < 18 ? " The shots are only a little louder than the room: put the phone closer if shots get missed." : "";
-  calibSay(`Threshold set to ${thr} dB.`, `Every shot should now flash the meter orange.${close}`);
+  const close = Math.min(...shots) - floor < 18 ? " The shots are only a little louder than the room: put the phone closer if shots get missed." : "";
+  calibSay(`Threshold ${thr} dB, from ${shots.length} shots.`, `${calibLine(floor, shots)}<br>Keep firing to refine it, or tap Done.${close}`);
   $("calibDone").textContent = "Done";
 }
 // the detector's hits while the sheet is open
@@ -2182,7 +2267,7 @@ async function openCalib(listenFirst) {
 }
 // closing (Done, ✕, or Escape via the close event): back to idle at once, not on the asynchronous event
 function closeCalib() {
-  if (calib && calib.phase !== "done") save("standby.calibrated", true);   // skipped: don't ask again; "Mic test" is there
+  if (calib && calib.phase !== "done" && !isCalibrated()) save("standby.calibSkipped", true);   // skipped: not tuned, but not asked again (the idle hint says so)
   calib = null;
   if ($("calib").open) $("calib").close();
   if (state === "test") goIdle();
@@ -2343,7 +2428,7 @@ let calibAfterTour = false;
 function afterTour() {
   if (!calibAfterTour) return;
   calibAfterTour = false;
-  if (state === "idle" && !isCalibrated()) openCalib(true);
+  if (state === "idle" && askCalib()) openCalib(true);
 }
 $("tour").addEventListener("close", () => {
   if ($("tour").open) return;   // reopened meanwhile: this event is stale
@@ -2394,14 +2479,14 @@ $("help").addEventListener("click", () => openTour());
 // and unlocks speech; until then a string can't start.
 let gestured = false;
 function ensureAudio() {
-  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
+  if (!ctx) { ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" }); ctx.onstatechange = onAudioState; }
   if (ctx.state !== "running") ctx.resume().catch(() => {});
   if (gestured) return;
   gestured = true;
   if ("speechSynthesis" in window) speechSynthesis.speak(new SpeechSynthesisUtterance(""));   // unlock speech on mobile
   keepAwake();
   if (state === "idle" && statusText === "Idle") $("hint").textContent = idleHint();
-  if (state === "idle" && !isCalibrated() && !$("overlay")) openCalib(true);   // a returning user who never tuned the mic
+  if (state === "idle" && askCalib() && !$("overlay")) openCalib(true);   // a returning user who never tuned the mic
 }
 document.addEventListener("pointerdown", ensureAudio, { capture: true });
 document.addEventListener("keydown", ensureAudio, { capture: true });
@@ -2416,7 +2501,7 @@ async function enable() {
   goIdle();
   // the first visit: the quick tour, then the mic setup, then go
   if (!load("standby.toured", false)) { calibAfterTour = true; openTour(); }
-  else if (!isCalibrated()) openCalib(true);
+  else if (askCalib()) openCalib(true);
 }
 $("enable").addEventListener("click", enable);
 $("start").addEventListener("click", () => {
@@ -2430,7 +2515,7 @@ $("stop").addEventListener("click", () => {
   abortRun(); pending = null; activeSet = null;
   goIdle();   // straight back to the idle face and the preview of what's set
 });
-$("test").addEventListener("click", () => openCalib(false));
+$("test").addEventListener("click", () => openCalib(!isCalibrated()));   // not tuned yet (skipped): calibrate, not just a meter
 $("clearLog").addEventListener("click", () => { if (confirm("Clear the log?")) { save("standby.log", []); renderLog(); } });
 syncPreset();
 updateThresholdUi();

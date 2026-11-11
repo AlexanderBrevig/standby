@@ -3,7 +3,8 @@
 const LOG = [], SAID = [];
 window.onerror = (m, s, l) => LOG.push("ERROR " + m + " @" + l);
 window.onunhandledrejection = e => LOG.push("REJECT " + (e.reason && e.reason.stack || e.reason));
-ctx = { get currentTime() { return performance.now() / 1000; }, outputLatency: 0, baseLatency: 0 };
+ctx = { get currentTime() { return performance.now() / 1000; }, outputLatency: 0, baseLatency: 0, state: "running",
+  resume() { return Promise.resolve(); } };
 const beeps = [];
 beepAt = (t, dur) => { const g = { t, dur, cancelled: false, disconnect() { this.cancelled = true; } }; beeps.push(g); return g; };
 endTone = () => sleep(10);
@@ -27,6 +28,7 @@ setInterval(() => {
   if (s && !s.fed) {
     s.fed = true; const shots = PLAN(s, rep++);
     if (shots === "early") { onHit(ctx.currentTime + 0.05); return; }
+    if (shots === "deaf") return;   // the mic hears neither the beep nor a shot
     const heard = s.T + 0.05;
     setTimeout(() => onBeep(heard), (heard - ctx.currentTime) * 1000);
     for (const x of shots) setTimeout(() => onHit(heard + x), (heard + x - ctx.currentTime) * 1000);

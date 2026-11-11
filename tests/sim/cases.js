@@ -180,16 +180,37 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   check("uncalibrated at default", !isCalibrated());
   await openCalib(true);
   check("mic sheet open", $("calib").open && state === "test" && calib.phase === "room");
-  for (let k = 0; k < 40; k++) { calibPeak(0.01, ctx.currentTime); await sleep(50); }   // the room: -40 dB
+  for (let k = 0; k < 30; k++) { calibPeak(0, ctx.currentTime); await sleep(50); }   // a mic just opened: digital silence
+  check("silence before the mic delivers isn't the room", calib.phase === "room" && calib.t0 === null && !calib.noise.length, JSON.stringify(calib.noise.slice(0, 3)));
+  // the threshold from the shots, not the room: a real session (room -62, shots -8 -2 -5, typing -19 -20)
+  check("calib: typing between shots isn't a shot", calibThreshold(-62, [-8, -2, -19, -20]).thr === null, JSON.stringify(calibThreshold(-62, [-8, -2, -19, -20])));
+  check("calib: under the median shot, above the typing", calibThreshold(-62, [-8, -2, -19, -20, -5]).thr === -15, JSON.stringify(calibThreshold(-62, [-8, -2, -19, -20, -5])));
+  check("calib: every shot would trigger it", calibThreshold(-62, [-2, -2, -11]).thr === -14, calibThreshold(-62, [-2, -2, -11]).thr);
+  check("calib: shots close to the room: well clear of the room, still under the shots", calibThreshold(-40, [-27, -27, -27]).thr === -30, calibThreshold(-40, [-27, -27, -27]).thr);
+  for (let k = 0; k < 40; k++) { calibPeak(k % 10 ? 0.01 : 0.02, ctx.currentTime); await sleep(50); }   // the room: -40 dB, peaks at -34
   check("room measured", calib.phase === "clicks", calib && calib.phase);
-  for (let k = 0; k < 3; k++) { calibPeak(0.3, ctx.currentTime); await sleep(400); calibPeak(0.01, ctx.currentTime); }   // clicks: about -10 dB
-  const want = Math.round(-40 + (ampDb(0.3) + 40) * 0.45);
-  check("calibrated threshold", S.threshold === want && $("threshold").value === String(want) && isCalibrated() && calib.phase === "done", S.threshold + " " + (calib && calib.phase));
-  testHit(ctx.currentTime); check("clicks counted after", /1<\/b> shot heard/.test($("calibHits").innerHTML), $("calibHits").innerHTML);
+  check("room is its louder moments", Math.round(roomLevel(calib.noise)) === -34, roomLevel(calib.noise));
+  const shot = async a => { calibPeak(a, ctx.currentTime); await sleep(100); calibPeak(0.01, ctx.currentTime); await sleep(1000); };   // a shot, then the room
+  for (let k = 0; k < 20; k++) { calibPeak(0.3, ctx.currentTime); await sleep(50); }   // a bump: a second of rumble
+  calibPeak(0.01, ctx.currentTime); await sleep(1000);
+  check("a bump is one shot, not three", calib.clicks.length === 1 && S.threshold === DEFAULTS.threshold, calib.clicks.length);
+  await shot(0.3);
+  check("no threshold before three shots", S.threshold === DEFAULTS.threshold && $("calibDone").textContent === "Skip", S.threshold);
+  await shot(0.3);   // shots: about -10 dB
+  const room = () => roomLevel(calib.noise);   // followed between shots
+  const thrFor = shots => calibThreshold(room(), shots.map(ampDb)).thr;
+  const want = thrFor([0.3, 0.3, 0.3]);
+  check("calibrated threshold", S.threshold === want && $("threshold").value === String(want) && isCalibrated() && $("calibDone").textContent === "Done", S.threshold + " want " + want);
+  await shot(0.05);   // typing between the shots: ignored, it doesn't drag the threshold down
+  check("soft sounds ignored", S.threshold === want && /1 soft sound ignored/.test($("calibHits").innerHTML) && /<s>-26<\/s>/.test($("calibHits").innerHTML), S.threshold + " | " + $("calibHits").innerHTML);
+  await shot(0.6);   // a louder shot: it keeps listening and refines
+  const want2 = thrFor([0.3, 0.3, 0.3, 0.6]);
+  check("keeps refining until Done", S.threshold === want2 && /from 4 shots/.test($("calibStatus").textContent), S.threshold + " want " + want2 + " | " + $("calibStatus").textContent);
   $("calibDone").click(); await sleep(100);
   check("mic sheet closes to idle", !$("calib").open && state === "idle", state);
   $("test").click(); await sleep(100);
-  check("mic test opens the sheet as a meter", $("calib").open && calib.phase === "done" && new RegExp("Threshold " + want + " dB").test($("calibStatus").textContent), $("calibStatus").textContent);
+  check("mic test opens the sheet as a meter", $("calib").open && calib.phase === "done" && new RegExp("Threshold " + want2 + " dB").test($("calibStatus").textContent), $("calibStatus").textContent);
+  testHit(ctx.currentTime); check("meter counts shots", /1<\/b> shot heard/.test($("calibHits").innerHTML), $("calibHits").innerHTML);
   $("calibClose").click(); await sleep(100);
   applySettings({ threshold: DEFAULTS.threshold });
 
@@ -201,7 +222,12 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   $("tourNext").click(); await sleep(100);   // Done
   check("first visit: mic setup after the tour", !$("tour").open && $("calib").open && state === "test" && calib.phase === "room", `${$("tour").open} ${$("calib").open} ${state}`);
   closeCalib(); await sleep(100);
-  check("first visit: then go", state === "idle" && isCalibrated(), state);
+  check("first visit: skipped, not asked again", state === "idle" && !isCalibrated() && !askCalib(), state);
+  check("skipped: the idle hint says the mic isn't tuned", /isn.t tuned/.test(idleHint()), idleHint());
+  $("test").click(); await sleep(100);
+  check("skipped: Mic test calibrates instead of only showing the meter", $("calib").open && calib.phase === "room", calib && calib.phase);
+  closeCalib(); await sleep(100);
+  localStorage.removeItem("standby.calibSkipped");
   openTour(); closeTour(); await sleep(100);
   check("later tours don't reopen the mic setup", !$("calib").open && state === "idle");
   applySettings({ threshold: DEFAULTS.threshold });
@@ -259,6 +285,50 @@ const check = (name, cond, info = "") => LOG.push((cond ? "ok   " : "FAIL ") + n
   // 27. a saved setup from before the rep interval was retired still loads
   applySettings({ repInterval: 5, reps: 2 }); check("retired setting ignored", S.reps === 2 && !("repInterval" in S) && !LOG.some(l => /^(ERROR|REJECT)/.test(l)));
   applySettings({ reps: 1 });
+
+  // 28. no shots heard: no clock running up to maxWait ("9.98"), a dash and what to check instead
+  let shown = [];
+  const watchBig = setInterval(() => shown.push($("big").textContent), 30);
+  await runSet("drill, no shots", { mode: "drill", pattern: "P" }, () => []);
+  clearInterval(watchBig);
+  check("no shots: no running clock", !shown.some(t => /^[1-9]\.\d\d$/.test(t)), [...new Set(shown)].join(","));
+  check("no shots: a dash and the threshold hint", $("big").textContent === "—" && statusText === "No shots" && /threshold/.test($("hint").textContent), `${$("big").textContent} | ${statusText} | ${$("hint").textContent}`);
+  check("no shots: spoken", SAID.includes("No shots detected. Check the microphone threshold."), SAID.slice(-1)[0]);
+  await runSet("course, deaf mic", { mode: "course" }, () => "deaf");
+  check("deaf mic: says neither beep nor shot was heard", statusText === "No shots" && /neither the beep nor a shot/.test($("hint").textContent), $("hint").textContent);
+
+  // 29. a suspended audio clock asks for a tap, and the status comes back when it runs again
+  setup({ mode: "drill", pattern: "P1", maxWait: 3 }); SAID.length = 0; rep = 0; PLAN = () => [];
+  startSession(); await until(() => string && string.live, 30000);
+  ctx.state = "interrupted"; onAudioState();
+  check("audio paused: asks for a tap", statusText === "Audio paused" && /Tap anywhere/.test($("hint").textContent) && string.audioGap, statusText);
+  ctx.state = "running"; onAudioState();
+  check("audio running again: status back", statusText === "Listening", statusText);
+  await until(() => state === "idle", 30000);
+  check("audio gap noted in the result", /Audio paused during the string/.test($("hint").textContent), $("hint").textContent);
+
+  // 30. the real detector (worklet and filters) on synthesized audio: a quiet beep under a high shot threshold
+  // is still heard, by its tone; loud broadband shots are shots, and never pass for the beep
+  {
+    const sr = 48000, len = 2.5, ac = new OfflineAudioContext(1, sr * len, sr);
+    await ac.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" })));
+    const buf = ac.createBuffer(1, sr * len, sr), x = buf.getChannelData(0);
+    let seed = 1; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    for (let i = 0; i < x.length; i++) x[i] = 0.003 * rnd();                       // the room, about -50 dB
+    const beepAt0 = 1.0, shotsAt = [0.5, 1.12, 2.0];
+    for (let i = 0; i < 0.3 * sr; i++) x[Math.round(beepAt0 * sr) + i] += 0.03 * Math.min(1, i / (0.005 * sr)) * Math.sin(2 * Math.PI * BEEP_HZ * i / sr);   // -30 dB
+    for (const at of shotsAt) for (let i = 0; i < 0.05 * sr; i++) x[Math.round(at * sr) + i] += 0.6 * Math.exp(-i / (0.008 * sr)) * rnd();
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const { detector: node } = wireDetector(ac, src);
+    node.connect(ac.destination);
+    node.port.postMessage({ threshold: dbToAmp(-15), refractory: 0.08 });
+    const got = { hit: [], beep: [] };
+    node.port.onmessage = e => { if (e.data.hit != null) got.hit.push(e.data.hit); if (e.data.beep != null) got.beep.push(e.data.beep); };
+    src.start(0);
+    await ac.startRendering(); await sleep(300);
+    check("detector: quiet beep heard under a high shot threshold", got.beep.length === 1 && Math.abs(got.beep[0] - beepAt0) < 0.004, JSON.stringify(got.beep));
+    check("detector: shots are shots, not beeps", got.hit.length === 3 && shotsAt.every((at, k) => Math.abs(got.hit[k] - at) < 0.004), JSON.stringify(got.hit));
+  }
 
   // 14. generated course + score over 12 shots prompt uses digits
   check("numWord 15", numWord(15) === "15");

@@ -42,7 +42,7 @@ Patterns: `P` paper (2 shots), `S` steel (1 hit), `R` reload, `M` movement. The 
 - No accounts and no tracking: the log, settings and adaptive par live in this browser's local storage. The page loads its fonts from Google Fonts.
 
 ## Tips and limits
-- **Mic calibration**: the first time, Standby listens to the room, asks for three shots, and sets the threshold between the two. "Mic test" (under Detector & timing) opens the same sheet: meter, shots heard and the threshold slider together; "Listen again" re-runs it. Phone close to the gun works best.
+- **Mic calibration**: the first time, Standby listens to the room, asks for three shots and sets the threshold under them (10 dB below the median shot, so typing or a tap much quieter than the shots is ignored), then keeps listening: every further shot refines it until you tap Done. The sheet shows each sound heard, the ignored ones struck through. "Mic test" (under Detector & timing) opens the same sheet: meter, shots heard and the threshold slider together; "Listen again" re-runs it. Phone close to the gun works best. Skipping it leaves the default threshold, and the idle screen says so until the mic is tuned. A string with no shots heard ends on "No shots" with what to check (the threshold, or a covered mic when not even the beep was heard).
 - **Times are measured from the beep as the mic hears it**, so speaker and microphone latency cancel out.
 - **Every sound above the threshold counts as a shot**: nearby shooters and loud echoes too. In an echoey room, raise the echo window (Detector & timing).
 - **Saying "bang" works, but adds your voice reaction time** (~0.15–0.3 s, inconsistent).
